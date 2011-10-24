@@ -18,14 +18,14 @@ beoservpid=$(pgrep beoserv)
 bpmasterpid=$(pgrep bpmaster)
 recvstatspid=$(pgrep recvstats)
 
-function _removelock_printstderr_exit { #Usage: _removelock_printstderr_exit "Some error text." errornum
+function _removelock_printstderr_exit { #Usage: _removelock_printstderr_exit "Some error text." exitnum
 rm -rf $lockdir
 logger -p crit "CREATE TICKET FOR SE - $1"
 echo "$1" 1>&2
 exit $2
 }
 
-function _removelock_prinstdout_exit { #Usage: _removelock_prinstdout_exit "Some error text." errornum
+function _removelock_prinstdout_exit { #Usage: _removelock_prinstdout_exit "Some error text." exitnum
 rm -rf $lockdir
 logger -p info "$1"
 echo "$1"
@@ -50,7 +50,7 @@ if [ "$HOSTNAME" = "headnode0.frank.sam.pitt.edu" ];then
 elif [ "$HOSTNAME" = "headnode1.frank.sam.pitt.edu" ];then
   passivenode="headnode0.frank.sam.pitt.edu"
 else
-  _removelock_printstderr_exit "ERROR - $LINENO - Unable to determine if this script is running on the active headnode."
+  _removelock_printstderr_exit "ERROR - $LINENO - Unable to determine if this script is running on the active headnode." 1
 fi
 
 if ssh $passivenode : 1> /dev/null 2>>$logfile;then
@@ -58,18 +58,18 @@ if ssh $passivenode : 1> /dev/null 2>>$logfile;then
   passivenodebpmasterpid=$(ssh $passivenode "pgrep bpmaster")
   passivenoderecvstatspid=$(ssh $passivenode "pgrep recvstats")
 else
-  _removelock_printstderr_exit "Beorsync skipped - Unable to SSH to $passivenode."
+  _removelock_printstderr_exit "Beorsync skipped - Unable to SSH to $passivenode." 1
 fi
 
 if [ -z "$beoservpid" -o -z "$bpmasterpid" -o -z "$recvstatspid" -o -n "$passivenodebeoservpid" -o -n "$passivenodebpmasterpid" -o -n "$passivenoderecvstatspid" ];then
-  _removelock_prinstdout_exit "Beorsync skipped - A beowulf process is not running on this node or is running on $passivenode."
+  _removelock_prinstdout_exit "Beorsync skipped - A beowulf process is not running on this node or is running on $passivenode." 0
 fi
 
 cat "$fileslist" | while read -r each;do
   echo "Starting rsync of $each." | tee -a $logfile
   $rsyncbin $rsyncoptions -e "$sshbin -i /root/.ssh/id_rsa" $each $passivenode:$each | tee -a $logfile
   if [ "$?" != "0" ];then 
-     _removelock_printstderr_exit "Beorsync of $each to the passive node failed, skipping any remaining files/dirs."
+     _removelock_printstderr_exit "Beorsync of $each to the passive node failed, skipping any remaining files/dirs." 1
   else
     echo "$(date) - Beosync of $each to $passivenode was successful." | tee -a $logfile
     logger -p info "Beosync of $each to $passivenode was successful."
@@ -79,7 +79,7 @@ done
  echo "Starting rsync of /opt/." 1>> $logfile
 $rsyncbin $rsyncoptions --delete-before --exclude pkg -e "$sshbin -i /root/.ssh/id_rsa" /opt/ $passivenode:/opt/ | tee -a $logfile
   if [ $? != 0 ];then 
-     _removelock_printstderr_exit "Beosync of /opt to $passivenode failed!"
+     _removelock_printstderr_exit "Beosync of /opt to $passivenode failed!" 1
   else
     echo "$(date) - Beosync of /opt/ to $passivenode was successful." | tee -a $logfile
     logger -p info "Beosync of /opt/ to $passivenode was successful."

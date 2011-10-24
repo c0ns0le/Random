@@ -1,7 +1,7 @@
 #!/bin/bash
 #Description: Bash script to rsync files between cluster headnodes.
 #Written By: Jeff White of The Univeristy of Pittsburgh (jaw171@pitt.edu)
-#Version Number: 1.0
+#Version Number: 1.1
 #Revision Date: 10-22-11
 #License: This script is released under version three (3) of the GNU General Public License (GPL) of the FSF, 
 #+the text of which is available at http://www.fsf.org/licensing/licenses/gpl-3.0.html
@@ -37,7 +37,7 @@ if mkdir "$lockdir" &> /dev/null;then
   echo "$BASHPID" > $lockdir/pid
 else
   echo "FATAL ERROR - $LINENO - Cannot acquire lock, $script may already be running.  If not, remove $lockdir."
-  logger -p crit "CREATE TICKET FOR SE - Beorsync skipped - Cannot acquire lock, $script may already be running."
+  logger -p crit "CREATE TICKET FOR SE - Beorsync failed - Cannot acquire lock, $script may already be running."
   exit 1
 fi
 
@@ -50,7 +50,7 @@ if [ "$HOSTNAME" = "headnode0.frank.sam.pitt.edu" ];then
 elif [ "$HOSTNAME" = "headnode1.frank.sam.pitt.edu" ];then
   passivenode="headnode0.frank.sam.pitt.edu"
 else
-  _removelock_printstderr_exit "ERROR - $LINENO - Unable to determine if this script is running on the active headnode." 1
+  _removelock_printstderr_exit "ERROR - $LINENO - Beorsync failed: Unable to determine if this script is running on the active headnode." 1
 fi
 
 if ssh $passivenode : 1> /dev/null 2>>$logfile;then
@@ -58,7 +58,7 @@ if ssh $passivenode : 1> /dev/null 2>>$logfile;then
   passivenodebpmasterpid=$(ssh $passivenode "pgrep bpmaster")
   passivenoderecvstatspid=$(ssh $passivenode "pgrep recvstats")
 else
-  _removelock_printstderr_exit "Beorsync skipped - Unable to SSH to $passivenode." 1
+  _removelock_printstderr_exit "Beorsync failed - Unable to SSH to $passivenode." 1
 fi
 
 if [ -z "$beoservpid" -o -z "$bpmasterpid" -o -z "$recvstatspid" -o -n "$passivenodebeoservpid" -o -n "$passivenodebpmasterpid" -o -n "$passivenoderecvstatspid" ];then

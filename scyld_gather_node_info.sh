@@ -35,9 +35,9 @@ node=0
 while [ "$node" -lt "$num_nodes" ];do
   echo "Working on $node."
   if [ $(bpstat $node | awk '!/^Node/ {print $2}') != "up" ];then #If the node is not up, skip it.
-    echo "$node,,,,,,,,,,,,,,,"
+    echo "$node,,,,,,,,,,,,,,,">>"$output_file"
     node=$(($node+1))
-    break
+    continue
   fi
   #Node number
   printf "$node,">>"$output_file"

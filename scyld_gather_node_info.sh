@@ -67,10 +67,10 @@ while [ "$node" -lt "$num_nodes" ];do
   if bpsh n$node df -kP | grep '/scratch'>/dev/null;then #If there is a scratch disk found...
     bpsh n$node df -kP | awk '/\/scratch/ {print $4/1024/1024;exit}' | tr '\n' ','>>"$output_file"
   else
-    printf ",">>"$output_file"
+    printf "0,">>"$output_file"
   fi
   #Amount of RAM
-  bpsh n$node awk '/^MemTotal/ {print $2;exit}' /proc/meminfo | tr '\n' ','>>"$output_file"
+  bpsh n$node awk '/^MemTotal/ {print $2/1024/1024;exit}' /proc/meminfo | tr '\n' ','>>"$output_file"
   #Hardware manufacturer
   printf ",">>"$output_file"
   #Hardware model number

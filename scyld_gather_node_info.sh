@@ -2,7 +2,6 @@
 #FIle Name: scyld_gather_node_info.sh
 #Description: Bash script to load and start glusterfs on compute nodes.
 #Written by: Jeff White (jaw171@pitt.edu) of the University of Pittsburgh
-#Based on unlicensed work by: An unknown engineer at Penguin Computing
 #Version Number: 1.1
 #Revision Date: 10-25-2011
 #License: This script is released under version three (3) of the GNU General Public License (GPL) of the FSF, the text of which is available at http://www.fsf.org/licensing/licenses/gpl-3.0.html

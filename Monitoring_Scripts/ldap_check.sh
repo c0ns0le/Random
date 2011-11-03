@@ -23,5 +23,5 @@ if [ "$?" = "0" ];then
   echo "LDAP group information found, LDAP appears to be working."
 else
   echo "ERROR - Failed to get LDAP group information, LDAP may be dead!"
-  logger -p crit "CREATE TICKET FOR SE - Failed to get LDAP group information, LDAP (or nscd) may be dead."
+  logger -p crit "URGENT ALERT CALL TIER II - Failed to get LDAP group information, LDAP (or nscd) may be dead."
 fi

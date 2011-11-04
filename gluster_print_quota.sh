@@ -8,7 +8,7 @@
 # Free Software Foundation (FSF), the text of which is available at http://www.fsf.org/licensing/licenses/gpl-3.0.html.
 # Use of this script implies your acceptance of this license and its terms.
 # This is a free script, you are free to change and redistribute it with the terms of the GNU GPL.
-# There is NO WARRANTY, not even for FITNESS FOR A PARTICULAR PURPOSE to the extent permitted by U.S. law.
+# There is NO WARRANTY, not even for FITNESS FOR A PARTICULAR USE to the extent permitted by U.S. law.
 #####
 
 ##### Notes:
@@ -25,6 +25,10 @@
 script="${0##*/}"
 glusterbin="/usr/sbin/gluster"
 awkbin="/bin/awk"
+ldapsearchbin="/usr/bin/ldapsearch"
+ldap_uri="ldap://sam-ldap-prod-01.cssd.pitt.edu"
+volume_name="vol_home"
+temp_file="/tmp/.$script-$RANDOM"
 
 function _print_usage { #Usage: _print_usage
   cat <<EOF
@@ -35,7 +39,7 @@ Synopsis
     This script will print the quota of a group's home directory so 
     '-u jaw171' '-g cssd' and '-d /cssd' should do the same thing
     assuming jaw171 is in the group cssd and the group's home directory
-    if /cssd ('/' being the volume itself).
+    is /cssd ('/' meaning the volume itself wherever it is mounted).
 
     Only one option should to be specified.
 
@@ -58,7 +62,61 @@ echo "$1" 1>&2
 
 function _print_stderr_then_exit { # Usage: _print_stderr_then_exit "Some error text" exit_number
 echo "$1" 1>&2
+rm -rf "$temp_file"
 exit $2
+}
+
+function _print_stdout_then_exit { # Usage: _print_stdout_then_exit "Some error text" exit_number
+echo "$1"
+rm -f "$temp_file"
+exit $2
+}
+
+function _print_quota_stats { #Usage: _print_quota_stats
+$glusterbin volume quota "$volume_name" list "$group_homedir" > "$temp_file"
+if ! grep "$group_homedir" "$temp_file">/dev/null;then
+  _print_stdout_then_exit "ERROR - $LINENO - No quota found.  Group home directory checked was $group_homedir." 1
+else
+  quota_limit=$(grep "$group_homedir" "$temp_file" | $awkbin '{print $2}')
+  quota_usage=$(grep "$group_homedir" "$temp_file" | $awkbin '{print $3}')
+  echo "Disk quota limit: $quota_limit"
+  if [ -z "$quota_usage" ];then
+    echo "Disk quota usage is null, the directory ($group_homedir) most likely doesn't exist yet."
+  else
+    echo "Disk quota usaged: $quota_usage"
+    quota_limit_in_GB=$(echo "$quota_limit" | $awkbin '
+      {
+	if (/Bytes$/)
+	  {printf "%.2f\n",$1/1024/1024/1024}
+	else if (/KB$/)
+	  {printf "%.2f\n",$1/1024/1024}
+	else if (/MB$/)
+	  {printf "%.2f\n",$1/1024} 
+	else if (/GB$/)
+	  {printf "%.2f\n", $1}
+	else if (/TB$/)
+	  {printf "%.2f\n",$1*1024} 
+	else
+	  {print "ERROR - Unable to convert limit value to GB.";exit 1}
+      }')
+    quota_usage_in_GB=$(echo "$quota_usage" | $awkbin '
+      {
+	if (/Bytes$/)
+	  {printf "%.2f\n",$1/1024/1024/1024}
+	else if (/KB$/)
+	  {printf "%.2f\n",$1/1024/1024}
+	else if (/MB$/)
+	  {printf "%.2f\n",$1/1024} 
+	else if (/GB$/)
+	  {printf "%.2f\n", $1}
+	else if (/TB$/)
+	  {printf "%.2f\n",$1*1024} 
+	else
+	  {print "ERROR - Unable to convert usage value to GB.";exit 1}
+      }')
+    echo "Percentage used: $(echo "scale=2;$quota_usage_in_GB/$quota_limit_in_GB" | bc)"
+  fi
+fi
 }
 
 if [[ "$EUID" != "0" ]];then
@@ -86,16 +144,25 @@ while getopts ":u:g:d:" option; do
 done
 shift $((OPTIND - 1))
 
-echo "User: $user_name"
-echo "Group: $group_name"
-echo "Directory: $directory"
-
 if [[ -n "$user_name" ]];then
-  
+  getent passwd "$user_name">/dev/null
+  if [ "$?" != "0" ];then
+    _print_stderr_then_exit "ERROR - $LINENO - The user $user_name does not appear to exist." 1
+  else
+    group_homedir=$($ldapsearchbin -LLLx -H "$ldap_uri" -b "ou=people,dc=frank,dc=sam,dc=pitt,dc=edu" "(cn=$user_name)" | $awkbin -F'/' '/^homeDirectory/ {print "/"$3}')
+    _print_quota_stats
+  fi
 elif [[ -n "$group_name" ]];then
-  
+  getent group "$group_name">/dev/null
+  if  [ "$?" != "0" ];then
+    _print_stderr_then_exit "ERROR - $LINENO - The group $group_name does not appear to exist." 1
+  else
+    group_homedir="/$group_name"
+    _print_quota_stats
+  fi
 elif [[ -n "$directory" ]];then
-  
+  group_homedir="$directory"
+  _print_quota_stats
 else
   _print_stderr_then_exit "ERROR - $LINENO - Unable to determine what to check.  Something is broken, this is a bug." 1
 fi

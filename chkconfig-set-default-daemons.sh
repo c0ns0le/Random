@@ -24,10 +24,6 @@
 script="${0##*/}"
 chkconfigbin="/sbin/chkconfig"
 temp_dir="/tmp/.$script"
-num_bad_enabled_daemons_found="0"
-num_bad_enabled_daemons_disabled="0"
-num_good_disabled_daemons_found="0"
-num_good_disabled_daemons_enabled="0"
 
 function _print_stderr { # Usage: _print_stderr "Some error text"
 echo "$1" 1>&2
@@ -127,10 +123,8 @@ fi
 for each_currently_enabled_daemon in $(cat "$temp_dir/currently_enabled_daemons");do
   grep "$each_currently_enabled_daemon" "$temp_dir/daemons_to_be_enabled" > /dev/null
   if [ "$?" != "0" ];then
-    num_bad_enabled_daemons_found=$(($num_bad_enabled_daemons_found + 1))
     read -p "Would you like to disable $each_currently_enabled_daemon? y or n: " user_response
     if [ "$user_response" = "y" ];then
-      $num_bad_enabled_daemons_disabled=$(($num_bad_enabled_daemons_disabled + 1))
       echo "Disabling $each_currently_enabled_daemon."
       $chkconfigbin --level 0123456 $each_currently_enabled_daemon off
     else
@@ -139,16 +133,12 @@ for each_currently_enabled_daemon in $(cat "$temp_dir/currently_enabled_daemons"
   fi
 done
 
-echo "Found $num_bad_enabled_daemons_found unwanted daemons which were enabled, disabled $num_bad_enabled_daemons_disabled of them."
-
 #This section enables the daemons we do want.
 for each_currently_disabled_daemon in $(cat "$temp_dir/currently_disabled_daemons");do
   grep "$each_currently_disabled_daemon" "$temp_dir/daemons_to_be_enabled" > /dev/null
   if [ "$?" = "0" ];then
-    num_good_disabled_daemons_found=$(($num_good_disabled_daemons_found + 1))
     read -p "Would you like to enable $each_currently_disabled_daemon? y or n: " user_response
     if [ "$user_response" = "y" ];then
-      num_good_disabled_daemons_enabled=$(($num_good_disabled_daemons_enabled + 1))
       echo "Enabling $each_currently_disabled_daemon."
       $chkconfigbin $each_currently_disabled_daemon on
     else
@@ -157,5 +147,4 @@ for each_currently_disabled_daemon in $(cat "$temp_dir/currently_disabled_daemon
   fi
 done
 
-echo "Found $num_good_disabled_daemons_found wanted daemons which were disabled, enabled $num_good_disabled_daemons_enabled of them."
 rm -rf "$temp_dir"

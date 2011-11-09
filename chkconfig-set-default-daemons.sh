@@ -158,4 +158,4 @@ for each_currently_disabled_daemon in $(cat "$temp_dir/currently_disabled_daemon
 done
 
 echo "Found $num_good_disabled_daemons_found wanted daemons which were disabled, enabled $num_good_disabled_daemons_enabled of them."
-#rm -rf "$temp_dir"
+rm -rf "$temp_dir"

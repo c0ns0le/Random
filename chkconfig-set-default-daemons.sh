@@ -18,7 +18,7 @@
 #####
 
 ##### Revision history:
-# Version 0.4 - 2011-11-07 - Complete re-write. - Jeff White
+# Version 0.4 - 2011-11-09 - Complete re-write. - Jeff White
 #####
 
 script="${0##*/}"

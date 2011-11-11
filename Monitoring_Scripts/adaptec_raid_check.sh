@@ -13,6 +13,8 @@
 
 ##### Revision history
 #
+# 0.2 - 2011-11-11 - Adjusted battery check to only alert on failure status. - Jeff White
+#
 # 0.1 - 2011-11-10 - Initial version. - Jeff White
 #
 #####
@@ -52,7 +54,7 @@ $awkbin '/Segment/ && $4 != "Present" {exit 1}' "$logical_device_output" || _pri
 
 $awkbin '/S.M.A.R.T. warnings/ && $4 != "0" {exit 1}' "$physical_device_output" || _print-stderr-then-exit "CREATE TICKET FOR SE - $LINENO - RAID controller physical disk has one or more SMART warnings in script $script." 1
 
-$awkbin '/Status/&&!/Controller/ && $NF != "Optimal" {exit 1}' "$adapter_output" || _print-stderr-then-exit "CREATE TICKET FOR SE - $LINENO - RAID controller battery is not in state optimal in script $script." 1
+$awkbin '/Status/&&!/Controller/ && $NF = "Failed" {exit 1}' "$adapter_output" || _print-stderr-then-exit "CREATE TICKET FOR SE - $LINENO - RAID controller battery is in state failed in script $script." 1
 
 echo "Controller and disk states appear to be OK."
 rm -rf "$temp_dir"

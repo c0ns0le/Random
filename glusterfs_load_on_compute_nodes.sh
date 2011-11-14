@@ -6,7 +6,8 @@
 #License: This script is released under version three (3) of the GNU General Public License (GPL) of the FSF, the text of which is available at http://www.fsf.org/licensing/licenses/gpl-3.0.html
 ##This is a free script, you are free to change and redistribute it.  There is NO WARRANTY, to the extent permitted by law.
 
-# This script is designed to be used with the GlusterFS RPMs from gluster.com version 3.2.4
+# This script is designed to be used with the GlusterFS RPMs from gluster.com version 3.2.4.
+# You need to NFS export /opt/glusterfs from the headnode to the compute nodes (edit /etc/export and /etc/beowulf/fstab).
 
 ##### Revision history
 #

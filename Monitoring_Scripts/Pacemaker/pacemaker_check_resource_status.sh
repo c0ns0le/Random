@@ -15,6 +15,8 @@
 
 ##### Revision history
 #
+# 0.3 - 2011-11-13 - Fixed a bug with $PATH. - Jeff White
+#
 # 0.2 - 2011-11-12 - Added details to the alerting. - Jeff White
 #
 # 0.1 - 2011-10-17 - Initial version. - Jeff White
@@ -28,6 +30,7 @@ crm_resource_bin="/usr/sbin/crm_resource"
 sed_bin="/bin/sed"
 awk_bin="/bin/gawk"
 num_resources_expected="5" #The number of resources we expect to see.
+PATH=$PATH:/usr/sbin
 
 function _print-stderr-then-exit { # Usage: _print-stderr-then-exit "Some error text" exitnumber
   echo "$1" 1>&2

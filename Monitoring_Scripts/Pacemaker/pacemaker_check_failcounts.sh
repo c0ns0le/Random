@@ -2,16 +2,31 @@
 #Name: pacemaker_check_failcounts.sh
 #Description: Bash script to check the failcounts of cluster resources with Pacemaker/Corosync.
 #Written by: Jeff White (jaw171@pitt.edu) of the University of Pittsburgh
-#Version Number: 0.1
-#Revision Date: 10-17-2011
-#License: This script is released under version three (3) of the GNU General Public License (GPL) of the FSF, the text of which is available at http://www.fsf.org/licensing/licenses/gpl-3.0.html
-##This is a free script, you are free to change and redistribute it.  There is NO WARRANTY, to the extent permitted by law.
+
+##### License
+# This script is released under version three (3) of the GNU General Public License (GPL) of the 
+# Free Software Foundation (FSF), the text of which is available at http://www.fsf.org/licensing/licenses/gpl-3.0.html.
+# Use or modification of this script implies your acceptance of this license and its terms.
+# This is a free script, you are free to change and redistribute it with the terms of the GNU GPL.
+# There is NO WARRANTY, not even for FITNESS FOR A PARTICULAR USE to the extent permitted by U.S. law.
+#####
+
+##### Revision history
+#
+# 0.3 - 2011-11-13 - Fixed a bug with $PATH. - Jeff White
+#
+# 0.2 - 2011-11-12 - Added details to the alerting. - Jeff White
+#
+# 0.1 - 2011-10-17 - Initial version. - Jeff White
+#
+#####
 
 script="${0##*/}"
 crm_bin="/usr/sbin/crm"
 crm_resource_bin="/usr/sbin/crm_resource"
 sed_bin="/bin/sed"
 awk_bin="/bin/gawk"
+PATH=$PATH:/usr/sbin
 
 function _print-stderr-then-exit { # Usage: _print-stderr-then-exit "Some error text" exitnumber
   echo "$1" 1>&2
@@ -38,9 +53,9 @@ $crm_resource_bin -L | $awk_bin '!/Resource Group:/ {print $1}' | while read -r 
     echo "OK: Resource $each on $HOSTNAME has a failcount of $failcount."
   elif [ "$failcount" = "1" ];then
     echo "WARNING: Resource $each on $HOSTNAME has a fail count of $failcount."
-    logger -p err "CREATE TICKET FOR SE: Resource $each on $HOSTNAME has a fail count of $failcount."
+    logger -p err "CREATE TICKET FOR SE: Resource $each on $HOSTNAME has a fail count of $failcount in script $script."
   elif [ "$failcount" -gt "1" ];then
     echo "WARNING: Resource $each on $HOSTNAME has a fail count of $failcount."
-    logger -p info "URGENT ALERT CALL TEIR II: Resource $each on $HOSTNAME has a fail count of $failcount."
+    logger -p info "URGENT ALERT CALL TEIR II: Resource $each on $HOSTNAME has a fail count of $failcount in script $script."
   fi
 done

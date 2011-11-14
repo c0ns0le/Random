@@ -13,6 +13,8 @@
 
 ##### Revision history
 #
+# 0.3 - 2011-11-14 - Adjusted failed disk check: =1 then create ticket, >1 then call tier II. - Jeff White
+#
 # 0.2 - 2011-11-11 - Adjusted battery check to only alert on failure status. - Jeff White
 #
 # 0.1 - 2011-11-10 - Initial version. - Jeff White
@@ -46,11 +48,21 @@ if [ ! -s "$adapter_output" -o ! -s "$logical_device_output" -o ! -s "$physical_
   _print-stderr-then-exit "CREATE TICKET FOR SE - $LINENO - One or more output files of arcconf is null or does not exist in script $script." 1
 fi
 
-$awkbin '/Controller Status/ && $NF != "Optimal" {exit 1}' "$adapter_output" || _print-stderr-then-exit "URGENT ALERT CALL TIER II - $LINENO - RAID controller status is not optimal in script $script." 1
+$awkbin '/Controller Status/ && $NF != "Optimal" {exit 1}' "$adapter_output" || _print-stderr-then-exit "URGENT ALERT CALL TIER II - $LINENO - RAID controller status is not optimal in script $script.  This does NOT mean a drive failed." 1
 
-$awkbin '/Status of logical device/ && $NF != "Optimal" {exit 1}' "$logical_device_output" || _print-stderr-then-exit "URGENT ALERT CALL TIER II - $LINENO - RAID controller logical device is not in state optimal in script $script." 1
+$awkbin '/Status of logical device/ && $NF != "Optimal" {exit 1}' "$logical_device_output" || _print-stderr-then-exit "CREATE TICKET FOR SE - $LINENO - RAID controller logical device is not in state optimal in script $script." 1
 
-$awkbin '/Segment/ && $4 != "Present" {exit 1}' "$logical_device_output" || _print-stderr-then-exit "URGENT ALERT CALL TIER II - $LINENO - RAID controller physical disk is not in state present in script $script." 1
+$awkbin '/Segment/ && $4 != "Present" {numfailures++} END {exit numfailures}' "$logical_device_output"
+num_failed_disks="$?"
+if [ "$num_failed_disks" = "0" ];then
+  echo "All disks report as 'Present'."
+elif [ "$num_failed_disks" = "1" ];then
+  _print-stderr-then-exit "CREATE TICKET FOR SE - $LINENO - A single physical disk is not in state present in script $script." 1
+elif [ "$num_failed_disks" -gt "1" ];then
+  _print-stderr-then-exit "URGENT ALERT CALL TIER II - $LINENO - More than one physical disk is not in state present in script $script." 1
+else
+  _print-stderr-then-exit "CREATE TICKET FOR SE - $LINENO - Unable to determine number of failed disks in script $script." 1
+fi
 
 $awkbin '/S.M.A.R.T. warnings/ && $4 != "0" {exit 1}' "$physical_device_output" || _print-stderr-then-exit "CREATE TICKET FOR SE - $LINENO - RAID controller physical disk has one or more SMART warnings in script $script." 1
 

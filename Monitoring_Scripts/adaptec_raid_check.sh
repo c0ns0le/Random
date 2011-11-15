@@ -13,6 +13,8 @@
 
 ##### Revision history
 #
+# 0.5 - 2011-11-15 - Removed 'rm' from _print-stderr function. - Jeff White
+#
 # 0.4 - 2011-11-15 - Removed the exits on non-fatal errors. - Jeff White
 #
 # 0.3 - 2011-11-14 - Adjusted failed disk check: =1 then create ticket, >1 then call tier II. - Jeff White
@@ -41,7 +43,6 @@ exit $2
 function _print-stderr { # Usage: _print-stderr-then-exit "Some error text"
 echo "$1" 1>&2
 logger -p err "$1"
-rm -rf "$temp_dir"
 }
 
 mkdir -p "$temp_dir" || _print-stderr-then-exit "CREATE TICKET FOR SE - $LINENO - Unable to create temporary directory $temp_dir in script $script." 1
@@ -76,5 +77,4 @@ $awkbin '/S.M.A.R.T. warnings/ && $4 != "0" {exit 1}' "$physical_device_output" 
 
 $awkbin '/Status/&&!/Controller/ && $NF == "Failed" {exit 1}' "$adapter_output" || _print-stderr "CREATE TICKET FOR SE - $LINENO - RAID controller battery is in state failed in script $script."
 
-echo "Controller and disk states appear to be OK."
 rm -rf "$temp_dir"

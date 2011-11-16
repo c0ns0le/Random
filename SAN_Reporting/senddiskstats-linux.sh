@@ -1,6 +1,6 @@
 #!/bin/bash                                                                                                                                                                         
 #Description: Bash script to have servers send out their disk stats to a list.                                                                                                      
-#Written By: Jeff White of The University of Pittsburgh (jaw171@pitt.edu)
+#Written By: Jeff White of The Univeristy of Pittsburgh (jaw171@pitt.edu)
 #Version Number: 0.1
 #Revision Date: 5-19-11
 #License: This script is released under version three (3) of the GNU General Public License (GPL) of the FSF, 
@@ -13,3 +13,6 @@ email="unix-san-stats@list.pitt.edu"
 dfbin="/bin/df"
 mailxbin="/bin/mailx" #This could call sendmail directly instead.
 sedbin="/bin/sed"
+
+#Print the disk stats in kilobytes, remove the first line, email it.
+$dfbin -kP | $sedbin -e '1d' | $mailxbin -s "Disk stats from: $HOSTNAME" $email

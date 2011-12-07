@@ -41,34 +41,39 @@ function _log_critical_error_and_exit { #Usage: _log_critical_error_and_exit "Er
 
 _log_entry "Checking sanity of the script."
 if [[ ! -x "$tis_commandline_script" -o -! -x "$remote_jobserver_start_script" -o ! -x "$remote_jobserver_stop_script" ]];then
-  _log_minor_error_and_exit "Required scripts or binaries could not be found or are not executable." 1
+  _log_minor_error_and_exit "Required scripts or binaries could not be found or are not executable on line $LINENO." 1
 elif [[ "$USER" != "$tisuser" ]];then
-  _log_minor_error_and_exit "Talend admin script was not ran as $tisuser." 1
+  _log_minor_error_and_exit "Talend admin script was not ran as $tisuser on $LINENO." 1
 fi
 
 _log_entry "Stopping Talend proccesses."
-$remote_jobserver_stop_script || _log_critical_error_and_exit "Failed to start Talend on line $LINENO." 1
-killall TISEE-linux-gtk-x86_64 || _log_critical_error_and_exit "Failed to start Talend on line $LINENO." 1
+$remote_jobserver_stop_script || _log_critical_error_and_exit "Failed to stop Talend remote jobserver on line $LINENO." 1
+killall TISEE-linux-gtk-x86_64 || _log_critical_error_and_exit "Failed to kill Talend process 'TISEE-linux-gtk-x86_64' on line $LINENO." 1
 sleep 2
 if ps -ef | grep "TISEE-linux-gtk-x86_64" >/dev/null;then
-  killall -9 TISEE-linux-gtk-x86_64
+  killall -9 TISEE-linux-gtk-x86_64 || _log_critical_error_and_exit "Failed to kill -9 Talend process 'TISEE-linux-gtk-x86_64' on line $LINENO." 1
   sleep 2
 fi
+service mysqld stop || _log_critical_error_and_exit "Failed to start MySQL on line $LINENO." 1
 
 _log_entry "Checking for remaining Talend processes."
 if ps -ef | grep "TISEE-linux-gtk-x86_64" >/dev/null;then
-  _log_critical_error_and_exit "Failed to kill Talend process TISEE-linux-gtk-x86_64" 1
+  _log_critical_error_and_exit "Failed to kill Talend process TISEE-linux-gtk-x86_64 on line $LINENO." 1
 fi
 
 _log_entry "Starting Talend processes."
+service mysqld start || _log_critical_error_and_exit "Failed to start MySQL on line $LINENO." 1
+sleep 2
 $tis_commandline_script -startServer || _log_critical_error_and_exit "Failed to start Talend on line $LINENO." 1
 $remote_jobserver_start_script || _log_critical_error_and_exit "Failed to start remote jobserver on line $LINENO." 1
 
 _log_entry "Checking that Talend is up and healthy."
-if [[ -z "$(pidof TISEE-linux-gtk-x86_64)" ]];then
-  _log_critical_error_and_exit "Talend process 'TISEE-linux-gtk-x86_64' was not found after starting Talend." 1
+if [[ -z "$(pidof mysqld)" ]];then
+  _log_critical_error_and_exit "Talend process 'mysqld' was not found after starting Talend on line $LINENO." 1
+elif [[ -z "$(pidof TISEE-linux-gtk-x86_64)" ]];then
+  _log_critical_error_and_exit "Talend process 'TISEE-linux-gtk-x86_64' was not found after starting Talend on line $LINENO." 1
 elif [[ -z "$(pidof java)" ]];then
-  _log_critical_error_and_exit "Talend process 'java' was not found after starting Talend." 1
+  _log_critical_error_and_exit "Talend process 'java' was not found after starting Talendon line $LINENO." 1
 fi
 #more is needed...port checks?
 

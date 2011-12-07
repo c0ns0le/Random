@@ -65,4 +65,11 @@ $tis_commandline_script -startServer || _log_critical_error_and_exit "Failed to 
 $remote_jobserver_start_script || _log_critical_error_and_exit "Failed to start remote jobserver on line $LINENO." 1
 
 _log_entry "Checking that Talend is up and healthy."
-#if not, _log_critical_error_and_exit
+if [[ -z "$(pidof TISEE-linux-gtk-x86_64)" ]];then
+  _log_critical_error_and_exit "Talend process 'TISEE-linux-gtk-x86_64' was not found after starting Talend." 1
+elif [[ -z "$(pidof java)" ]];then
+  _log_critical_error_and_exit "Talend process 'java' was not found after starting Talend." 1
+fi
+#more is needed...port checks?
+
+_log_entry "Success."

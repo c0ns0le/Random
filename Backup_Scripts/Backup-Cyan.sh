@@ -14,6 +14,8 @@
 
 ##### Revision history
 #
+# 1.8.2 - 2011-12-11 - Changed the -d option to transfer via rsync's SSH.
+#
 # 1.8.1 - 2011-12-11 - Re-wrote some of the VMware Workstation section, it was putting backups in the wrong place. - Jeff White
 #
 #####
@@ -93,8 +95,7 @@
 #done
 
 #VMware Workstation option: -v
-#+Client dependencies: Bash, OpenSSH (daemon), rsync (client), vmrun, VMware Workstation, sudo (Add to /etc/sudoers: backupuser backupclientname = (userwhorunsvms) NOPASSWD: /usr/bin/vmrun)
-#+Server dependencies: Bash, rsync (daemon), OpenSSH (client)
+#+Dependencies: Bash, OpenSSH (client daemon), rsync (client), vmrun, VMware Workstation, sudo (Add to /etc/sudoers: backupuser backupclientname = (userwhorunsvms) NOPASSWD: /usr/bin/vmrun)
 
 #Oracle VirtualBox option: -o
 #+Client dependencies: Bash, Oracle Virtualbox, OpenSSH (server), rsync (client)
@@ -826,8 +827,7 @@ if [ "$dataopt" = 1 ];then #Datastore section
   fi
   echo "$($time) - Starting remote commands." 1>>$log
   echo "$($time) - Starting rsync on main datastore." 1>>$log
-#  $sshbin -t $sshuser@Teal -p $sshport "$sudobin $rsynccl -R --exclude \"VM\" $rsyncdata/ /media/Backup || echo \"ERROR - $LINENO - Data backup failed!\"" 1>>$log
-  $sudobin $rsyncbin --delete-before -aDHAX --stats -e "$sudobin -u $sshuser $sshbin -l $sshuser -p $sshport" --rsync-path="$sudobin $rsyncbin" /media/Data/ teal:/media/Backup #1>>$log || echo "ERROR - $LINENO - Data backup failed!"
+  $sudobin $rsyncbin --progress -a --stats --exclude "VM" --delete-before -e "$sudobin -u $sshuser $sshbin -l $sshuser -p $sshport" --rsync-path="$sudobin $rsyncbin" /media/Data/ Teal:/media/Backup 1>>$log || echo "ERROR - $LINENO - Data backup failed!"
 fi
 
 echo "$($time) - Removing old backup logs." | $teebin -a $log

@@ -3,10 +3,20 @@
 #shopt -s -o nounset
 #Description: Bash script to back up Linux, MySQL, Apache2, VMware Workstation, Oracle VirtualBox, Palm WebOS, and more.
 #Written By: Jeff White (jwhite530@gmail.com)
-#Version Number: 1.8
-#Revision Date: 8-20-2011
-#License: This script is released under version three (3) of the GNU General Public License (GPL) of the FSF, the text of which is available at http://www.fsf.org/licensing/licenses/gpl-3.0.html
-##This is a free script, you are free to change and redistribute it.  There is NO WARRANTY, to the extent permitted by law.
+
+##### License
+# This script is released under version three (3) of the GNU General Public License (GPL) of the 
+# Free Software Foundation (FSF), the text of which is available at http://www.fsf.org/licensing/licenses/gpl-3.0.html.
+# Use or modification of this script implies your acceptance of this license and its terms.
+# This is a free script, you are free to change and redistribute it with the terms of the GNU GPL.
+# There is NO WARRANTY, not even for FITNESS FOR A PARTICULAR USE to the extent permitted by U.S. law.
+#####
+
+##### Revision history
+#
+# 1.8.1 - 2011-12-11 - Re-wrote some of the VMware Workstation section, it was putting backups in the wrong place. - Jeff White
+#
+#####
 
 #SECURITY NOTES AND CONSIDERATIONS: -- READ THIS --
 #+This script will accept any host key if it does not already know of one.  If you are a victim of a man-in-the-middle attack the first time you talk to the client,
@@ -38,17 +48,17 @@
 #getmail option: -g
 #+Server dependencies: getmail4 (and its configuration)
 #+This is designed for gmail but would work with any pop/imap email.  See the getmail Website for information on how to set up the config file, but here's mine:
-#+/etc/getmail/patheticpurplepenguin-gmail.com 
+#+/etc/getmail/somedude-gmail.com 
 #[retriever]
 #type = SimpleIMAPSSLRetriever
 #server =imap.gmail.com
-#username = patheticpurplepenguin@gmail.com
+#username = somedude@gmail.com
 #password = longandcomplicatedtobesecure
 ##mailboxes = ("[Gmail]/All Mail",) #If you want it all...
 #mailboxes = ("Inbox","School","Work")
 #[destination]
 #type = Mboxrd
-#path = /media/Data/Backup/patheticpurplepenguin-gmail.com/ALL.mbox
+#path = /media/Data/Backup/somedude-gmail.com/ALL.mbox
 #[options]
 #verbose = 2
 #message_log = /var/log/getmail.log
@@ -172,8 +182,7 @@ gmconffile=( "$gmconfdir/jwhite530.auto-gmail.com" "$gmconfdir/jwhite530-gmail.c
 
 #VMware configuration
 vmwrkstnsvr="Cyan" #The hostname of the VMware Workstation host.
-rsyncvmwarevmdir="white@192.168.10.150::VM" #The source location of the VMs.
-localvmwarevmdir="/media/VM" #This should be where $rsyncvmwarevmdir leads to
+#Most of this is custom to my environment so you'll have to adapt the code to yours.
 
 #Oracle VirtualBox configuration
 vboxsvr="Cyan"
@@ -738,32 +747,39 @@ if [ "$vmwareopt" = 1 ]; then #VMware Workstation section
   echo "$($time) - Checking and creating required remote directories." 1>>$log
   if $sshbin $sshuser@Teal -p $sshport : 1>>$log;then
     $sshbin $sshuser@Teal -p $sshport "{
-      $mkdirbin -p /media/Backup/VM || echo "ERROR - $LINENO - Unable to create required VM directory on Teal."
       $mkdirbin -p /media/Backup/VM/Dev || echo "ERROR - $LINENO - Unable to create required VM directory on Teal."
       $mkdirbin -p /media/Backup/VM/Prod || echo "ERROR - $LINENO - Unable to create required VM directory on Teal."
       $mkdirbin -p /media/Backup/VM/Retired || echo "ERROR - $LINENO - Unable to create required VM directory on Teal."
     }" 1>>$log
-  echo "Starting on running VMs" | $teebin -a $log
+    echo "Starting on running VMs" | $teebin -a $log
     echo "$($time) - Getting list of VMs and starting loop." 1>>$log
-    $sudobin -H -u white $vmrunbin -T ws list | $awkbin '{if (NR!=1) {print}}' | while read -r eachrunvmx;do
+    $sudobin -H -u white $vmrunbin -T ws list | $sedbin '1d' | while read -r eachrunvmx;do
       echo "Working on $eachrunvmx" | $teebin -a $log
       echo "$($time) - Pausing VM." 1>>$log
       $sudobin -H -u white $vmrunbin -T ws pause "$eachrunvmx" || _printerr "ERROR - $LINENO - Unable to pause $eachrunvmx" 1>>$log
       $sleepbin 5
       echo "$($time) - Starting rsync." 1>>$log
-      $sshbin -n $sshuser@Teal -p $sshport "$sudobin $rsyncbin -a --stats --delete-after \"$rsyncvmwarevmdir/$($dirnamebin "$eachrunvmx" | $cutbin -d'/' -f4-)\" \"/media/Backup/$($dirnamebin "$eachrunvmx" | $cutbin -d'/' -f3- | $revbin | $cutbin -d'/' -f2- | rev)\""  1>>$log || _printerr "ERROR - $LINENO - Failed to transfer $eachrunvmx"
+      #This section turns "/media/VM/Prod/Gamboge/Tails.vmx" into "/media/VM/Prod/Gamboge/" as the source of the VM to copy.
+      #Then turns "/media/VM/Prod/Gamboge/Tails.vmx" into "Teal:/media/Backup/VM/Prod/Gamboge" as the destination of the VM to copy.
+      $sudobin $rsyncbin --progress -a --stats --delete-before -e "$sudobin -u $sshuser $sshbin -l $sshuser -p $sshport" --rsync-path="$sudobin $rsyncbin" \
+	$(dirname "$eachrunvmx")/ \
+	Teal:/media/Backup/VM/$(dirname "$eachrunvmx" | $sedbin 's/\/media\/VM\///g')/ || _printerr "ERROR - $LINENO - Failed to transfer $eachrunvmx" 1>>$log
       $sleepbin 5
       echo "$($time) - Unpausing VM." 1>>$log
       $sudobin -H -u white $vmrunbin -T ws unpause "$eachrunvmx" || _printerr "ERROR - $LINENO - Unable to unpause $eachrunvmx" 1>>$log
     done
-  echo "Starting on non-running VMs" | $teebin -a $log
-    echo "$($time) - Getting list of VMs and starting loop." 1>>$log
-    $sudobin -H -u white $vmrunbin -T ws list | $awkbin '{if (NR!=1) {print}}' 1> $lockdir/runvmlist.txt || _printerr "ERROR - $LINENO - Unable to determine running VMs"
-    $findbin $localvmwarevmdir -name '*.vmx' | while read -r eachvmx; do
+    echo "Starting on non-running VMs" | $teebin -a $log
+      echo "$($time) - Getting list of VMs and starting loop." 1>>$log
+      $sudobin -H -u white $vmrunbin -T ws list 1> $lockdir/runvmlist.txt || _printerr "ERROR - $LINENO - Unable to determine running VMs"
+      $findbin /media/VM -name '*.vmx' | while read -r eachvmx; do
       if ! $grepbin "$eachvmx" $lockdir/runvmlist.txt > /dev/null; then
-	echo "Working on $($dirnamebin "$eachvmx")." | $teebin -a $log
+	echo "Working on $eachvmx." | $teebin -a $log
 	echo "$($time) - Starting rsync." >> $log
-	$sshbin -n $sshuser@Teal -p $sshport "$sudobin $rsyncbin -a --stats --delete-after \"$rsyncvmwarevmdir/$($dirnamebin "$eachvmx" | $cutbin -d'/' -f4-)\" \"/media/Backup/$($dirnamebin "$eachvmx" | $cutbin -d'/' -f3- | $revbin | $cutbin -d'/' -f2- | rev)\""  1>>$log || _printerr "ERROR - $LINENO - Failed to transfer $eachvmx"
+	#This section turns "/media/VM/Prod/Gamboge/Tails.vmx" into "/media/VM/Prod/Gamboge/" as the source of the VM to copy.
+	#Then turns "/media/VM/Prod/Gamboge/Tails.vmx" into "Teal:/media/Backup/VM/Prod/Gamboge" as the destination of the VM to copy.
+	$sudobin $rsyncbin --progress -a --stats --delete-before -e "$sudobin -u $sshuser $sshbin -l $sshuser -p $sshport" --rsync-path="$sudobin $rsyncbin" \
+	$(dirname "$eachvmx")/ \
+	Teal:/media/Backup/VM/$(dirname "$eachvmx" | $sedbin 's/\/media\/VM\///g')/ || _printerr "ERROR - $LINENO - Failed to transfer $eachrunvmx" 1>>$log
       fi
     done
   else
@@ -811,7 +827,7 @@ if [ "$dataopt" = 1 ];then #Datastore section
   echo "$($time) - Starting remote commands." 1>>$log
   echo "$($time) - Starting rsync on main datastore." 1>>$log
 #  $sshbin -t $sshuser@Teal -p $sshport "$sudobin $rsynccl -R --exclude \"VM\" $rsyncdata/ /media/Backup || echo \"ERROR - $LINENO - Data backup failed!\"" 1>>$log
-  $sudobin $rsyncbin -aDHAX --stats -e "$sudobin -u $sshuser $sshbin -l $sshuser -p $sshport" --rsync-path="$sudobin $rsyncbin" /media/Data/ teal:/media/Backup 1>>$log || echo "ERROR - $LINENO - Data backup failed!"
+  $sudobin $rsyncbin --delete-before -aDHAX --stats -e "$sudobin -u $sshuser $sshbin -l $sshuser -p $sshport" --rsync-path="$sudobin $rsyncbin" /media/Data/ teal:/media/Backup #1>>$log || echo "ERROR - $LINENO - Data backup failed!"
 fi
 
 echo "$($time) - Removing old backup logs." | $teebin -a $log

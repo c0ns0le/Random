@@ -13,6 +13,8 @@
 
 ##### Revision history
 #
+# 0.2 - 2011-12-18 - Various changes after testing the script. - Jeff White
+#
 # 0.1 - 2011-12-07 - Initial version. - Jeff White
 #
 #####
@@ -39,15 +41,8 @@ function _log_critical_error_and_exit { #Usage: _log_critical_error_and_exit "Er
   exit $2
 }
 
-_log_entry "Checking sanity of the script."
-if [[ ! -x "$tis_commandline_script" -o -! -x "$remote_jobserver_start_script" -o ! -x "$remote_jobserver_stop_script" ]];then
-  _log_minor_error_and_exit "Required scripts or binaries could not be found or are not executable on line $LINENO." 1
-elif [[ "$USER" != "$tisuser" ]];then
-  _log_minor_error_and_exit "Talend admin script was not ran as $tisuser on $LINENO." 1
-fi
-
 _log_entry "Stopping Talend proccesses."
-$remote_jobserver_stop_script || _log_critical_error_and_exit "Failed to stop Talend remote jobserver on line $LINENO." 1
+sudo -u $tisuser $remote_jobserver_stop_script || _log_critical_error_and_exit "Failed to stop Talend remote jobserver on line $LINENO." 1
 killall TISEE-linux-gtk-x86_64 || _log_critical_error_and_exit "Failed to kill Talend process 'TISEE-linux-gtk-x86_64' on line $LINENO." 1
 sleep 2
 if ps -ef | grep "TISEE-linux-gtk-x86_64" >/dev/null;then

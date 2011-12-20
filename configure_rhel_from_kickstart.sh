@@ -13,6 +13,8 @@
 
 ##### Revision history
 #
+# 0.3 - 2011-12-19 - Finished pam_ldap.conf section, added better yum update, - Jeff White
+#
 # 0.2 - 2011-11-22 - Added /etc/pam_ldap.conf section, changed grub.conf review from vi to less, added yum update, added IPv6 disabler, added hostname changer. - Jeff White
 #
 # 0.1 - 2011-11-17 - Initial version. - Jeff White
@@ -44,8 +46,8 @@ system-config-network-tui || _print-stderr-then-exit "ERROR - $LINENO - Failed t
 
 echo "#####"
 echo "Setting hostname."
-new_hostname=$(awk -F'=' '/^HOSTNAME/ {print $2}')
-if [[ -z "$new_hostname" -o "$new_hostname" == "localhost.localdomain" ]];then
+new_hostname=$(awk -F'=' '/^HOSTNAME/ {print $2}' /etc/sysconfig/network)
+if [ -z "$new_hostname" -o "$new_hostname" == "localhost.localdomain" ];then
   echo "New hostname is blank or localhost, did you set it?"
 else
   hostname "$new_hostname"
@@ -154,7 +156,7 @@ echo "#####"
 read -p "Should the new grub.conf be in place? y or n: " grub_y_or_n
 echo "#####"
 if [[ "$grub_y_or_n" == "y" ]];then
-  mv /var/tmp/grub.conf /boot/grub/grub.conf || _print-stderr-then-exit "ERROR - $LINENO - Failed to  in script $script." 1
+  mv /var/tmp/grub.conf /boot/grub/grub.conf || _print-stderr-then-exit "ERROR - $LINENO - Failed to put the new grub.conf in place in script $script." 1
   echo "#####"
 else
   echo "#####"
@@ -164,29 +166,50 @@ fi
 
 echo "#####"
 read -p "Hit enter to edit pam_ldap.conf to add the LDAP username and password."
-cp /etc/pam_ldap.conf{,.orig}
-vi /etc/pam_ldap.conf
+cp /etc/pam_ldap.conf{,.orig} || _print-stderr-then-exit "ERROR - $LINENO - Failed to back up /etc/pam_ldap.conf in script $script." 1
+cp /etc/pam_ldap.conf /var/tmp/ || _print-stderr-then-exit "ERROR - $LINENO - Failed to copy /etc/pam_ldap.conf to /var/tmp in script $script." 1
+vi /var/tmp/pam_ldap.conf || _print-stderr-then-exit "ERROR - $LINENO - Failed to edit /var/tmp/pam_ldap.conf in script $script." 1
 echo "#####"
-read -p "Should the new grub.conf be in place? y or n: " pam_ldap_y_or_n
+read -p "Should the new pam_ldap.conf be in place? y or n: " pam_ldap_y_or_n
 echo "#####"
 if [[ "$pam_ldap_y_or_n" == "y" ]];then
-  mv /var/tmp/grub.conf /boot/grub/grub.conf || _print-stderr-then-exit "ERROR - $LINENO - Failed to  in script $script." 1
+  mv /var/tmp/pam_ldap.conf /etc/pam_ldap.conf || _print-stderr-then-exit "ERROR - $LINENO - Failed to put the new pam_ldap.conf in place in script $script." 1
 else
   echo "#####"
-  echo "Not putting the new grub.conf into place, leaving it as /var/tmp/grub.conf."
+  echo "Not putting the new pam_ldap.conf into place, leaving it as /var/tmp/pam_ldap.conf."
   echo "#####"
 fi
 
 echo "#####"
 echo "Configuring default startup daemons."
 echo "#####"
-/usr/local/bin/chkconfig-set-default-daemons.sh
+/usr/local/bin/chkconfig-set-default-daemons.sh || _print-stderr-then-exit "ERROR - $LINENO - Failed to check and configure startup daemons in script $script." 1
 
 echo "#####"
 echo "Setting the new root password."
 passwd root
 echo "#####"
 
-echo "Don't forget to install VMware tools (if a VM) and perform a 'yum update'!"
+echo "#####"
+read -p "Would you like to install all updates now? y or n: " yumupdate_y_or_n
+if [[ "$yumupdate_y_or_n" == "y" ]];then
+  yum -y update || _print-stderr-then-exit "ERROR - $LINENO - Failed to run 'yum update' in script $script." 1
+  echo "#####"
+else
+  echo "#####"
+  echo "Skipping updates.  Be sure to run 'yum update' later."
+  echo "#####"
+fi
+
+echo "#####"
+echo "Install complete."
+if grep -i vmware /var/log/dmesg >/dev/null;then
+  echo "You must install VMware tools manually."
+elif grep -i dell /var/log/dmesg >/dev/null;then
+  echo "Ensure Dell OMSA is working by going to https://$HOSTNAME:1311"
+else
+  echo "You must install vendor supplied hardware management tools manually."
+fi
+echo "Don't forget to add this server to the AssetDB and tell Jeff White the root password."
 
 touch /root/.firstbootconfigdone

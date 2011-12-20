@@ -14,8 +14,9 @@
 
 ##### Revision history
 #
-# 1.8.2 - 2011-12-11 - Changed the -d option to transfer via rsync's SSH.
-#
+# 1.8.4 - 2011-12-13 - Excluded /bricks from Linux OS backups. - Jeff White
+# 1.8.3 - 2011-12-12 - Minor fixes with logging. - Jeff White
+# 1.8.2 - 2011-12-11 - Changed the -d option to transfer via rsync's SSH. - Jeff White
 # 1.8.1 - 2011-12-11 - Re-wrote some of the VMware Workstation section, it was putting backups in the wrong place. - Jeff White
 #
 #####
@@ -138,7 +139,7 @@ scpbin="/usr/bin/scp"
 script=${0##*/}
 log=/var/log/backup/$($datebin +%Y-%m-%d)-$script.log
 rsyncbkup="backupuser@192.168.10.150::Backup"  #This is where data will be backed up to.
-rsyncopt="--stats --delete --exclude .gvfs --exclude .cache --exclude .thumbnails --exclude Cache --exclude cache --exclude tmp"
+rsyncopt="--stats --delete --exclude .gvfs --exclude .cache --exclude .thumbnails --exclude Cache --exclude cache --exclude tmp --exclude bricks"
 rsynccl="$rsyncbin -alpEA $rsyncopt"
 bkupdir="/media/Data/Backup" #Local path to the backup directory here.  This should match the directory that $rsyncbkup leads to.
 sshuser="backupuser"
@@ -175,6 +176,7 @@ mysql
 sql
 tc
 tc2
+/bricks
 EOF
 
 #Getmail configuration
@@ -762,9 +764,7 @@ if [ "$vmwareopt" = 1 ]; then #VMware Workstation section
       echo "$($time) - Starting rsync." 1>>$log
       #This section turns "/media/VM/Prod/Gamboge/Tails.vmx" into "/media/VM/Prod/Gamboge/" as the source of the VM to copy.
       #Then turns "/media/VM/Prod/Gamboge/Tails.vmx" into "Teal:/media/Backup/VM/Prod/Gamboge" as the destination of the VM to copy.
-      $sudobin $rsyncbin --progress -a --stats --delete-before -e "$sudobin -u $sshuser $sshbin -l $sshuser -p $sshport" --rsync-path="$sudobin $rsyncbin" \
-	$(dirname "$eachrunvmx")/ \
-	Teal:/media/Backup/VM/$(dirname "$eachrunvmx" | $sedbin 's/\/media\/VM\///g')/ || _printerr "ERROR - $LINENO - Failed to transfer $eachrunvmx" 1>>$log
+      $sudobin $rsyncbin -a --stats --delete-before -e "$sudobin -u $sshuser $sshbin -l $sshuser -p $sshport" --rsync-path="$sudobin $rsyncbin" $(dirname "$eachrunvmx")/ Teal:/media/Backup/VM/$(dirname "$eachrunvmx" | $sedbin 's/\/media\/VM\///g')/ 1>>$log || _printerr "ERROR - $LINENO - Failed to transfer $eachrunvmx" 1>>$log
       $sleepbin 5
       echo "$($time) - Unpausing VM." 1>>$log
       $sudobin -H -u white $vmrunbin -T ws unpause "$eachrunvmx" || _printerr "ERROR - $LINENO - Unable to unpause $eachrunvmx" 1>>$log
@@ -778,9 +778,7 @@ if [ "$vmwareopt" = 1 ]; then #VMware Workstation section
 	echo "$($time) - Starting rsync." >> $log
 	#This section turns "/media/VM/Prod/Gamboge/Tails.vmx" into "/media/VM/Prod/Gamboge/" as the source of the VM to copy.
 	#Then turns "/media/VM/Prod/Gamboge/Tails.vmx" into "Teal:/media/Backup/VM/Prod/Gamboge" as the destination of the VM to copy.
-	$sudobin $rsyncbin --progress -a --stats --delete-before -e "$sudobin -u $sshuser $sshbin -l $sshuser -p $sshport" --rsync-path="$sudobin $rsyncbin" \
-	$(dirname "$eachvmx")/ \
-	Teal:/media/Backup/VM/$(dirname "$eachvmx" | $sedbin 's/\/media\/VM\///g')/ || _printerr "ERROR - $LINENO - Failed to transfer $eachrunvmx" 1>>$log
+	$sudobin $rsyncbin -a --stats --delete-before -e "$sudobin -u $sshuser $sshbin -l $sshuser -p $sshport" --rsync-path="$sudobin $rsyncbin" $(dirname "$eachvmx")/ Teal:/media/Backup/VM/$(dirname "$eachvmx" | $sedbin 's/\/media\/VM\///g')/ 1>>$log || _printerr "ERROR - $LINENO - Failed to transfer $eachrunvmx" 1>>$log
       fi
     done
   else
@@ -827,7 +825,7 @@ if [ "$dataopt" = 1 ];then #Datastore section
   fi
   echo "$($time) - Starting remote commands." 1>>$log
   echo "$($time) - Starting rsync on main datastore." 1>>$log
-  $sudobin $rsyncbin --progress -a --stats --exclude "VM" --delete-before -e "$sudobin -u $sshuser $sshbin -l $sshuser -p $sshport" --rsync-path="$sudobin $rsyncbin" /media/Data/ Teal:/media/Backup 1>>$log || echo "ERROR - $LINENO - Data backup failed!"
+  $sudobin $rsyncbin -a --stats --exclude "VM" --delete-before -e "$sudobin -u $sshuser $sshbin -l $sshuser -p $sshport" --rsync-path="$sudobin $rsyncbin" /media/Data/ Teal:/media/Backup 1>>$log || _printerr "ERROR - $LINENO - Data backup failed!"
 fi
 
 echo "$($time) - Removing old backup logs." | $teebin -a $log

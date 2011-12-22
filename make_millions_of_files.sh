@@ -13,6 +13,7 @@ shopt -s -o nounset
 
 ##### Revision history
 #
+# 0.2 - 2011-12-22 - Added output_dir variable and simplified the directory creator. - Jeff White
 # 0.1 - 2011-12-22 - Initial version. - Jeff White
 #
 #####
@@ -27,20 +28,20 @@ function randpass() { #This function came from a password generator I found on h
 }
 
 start_epoch=$(date +%s)
-max_num_files="35000000"
-file_size="5000" #bytes
+max_num_files="35000"
+file_size="5000000" #bytes
+output_dir="/local_data/35000__5MB_files"
 
 count=0
+dyndir="$output_dir/$(randpass 50 0)"
+mkdir -p "$dyndir"
 while [ $count -lt $max_num_files ];do
   echo "Working on $count"
   if (( !($count % 1000) )) ;then #Here I create a new directory every 1000 files.
-    dir="/local_data/35_million_5kb_files/$(randpass 50 0)"
-    mkdir -p "$dir"
-  elif [ $count = 0 ] ;then
-    dir="/local_data/35_million_5kb_files/$(randpass 50 0)"
-    mkdir -p "$dir"
+    dyndir="$output_dir/$(randpass 50 0)"
+    mkdir -p "$dyndir"
   fi
-  dd count=1 bs=$file_size if=/dev/urandom of=$dir/foo.$count 2>/dev/null
+  dd count=1 bs=$file_size if=/dev/urandom of=$dyndir/foo.$count 2>/dev/null
   count=$((count+1))
 done
 

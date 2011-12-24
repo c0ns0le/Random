@@ -14,6 +14,7 @@
 
 ##### Revision history
 #
+# 1.9 - 2011-12-23 - Added Android option. - Jeff White
 # 1.8.4 - 2011-12-13 - Excluded /bricks from Linux OS backups. - Jeff White
 # 1.8.3 - 2011-12-12 - Minor fixes with logging. - Jeff White
 # 1.8.2 - 2011-12-11 - Changed the -d option to transfer via rsync's SSH. - Jeff White
@@ -38,6 +39,13 @@
 #+On the client it should look like:
 #+backupuser backupclientrname = NOPASSWD: /usr/bin/rsync
 
+#Android option: -c
+#+Client dependencies: Bash (or a similar shell), rsync (client), OpenSSH (daemon)
+#+Server dependencies: Bash, OpenSSH (client)
+#+This option was designed for Cyanogenmod but you could do this with any ROM as long as you have root access.
+#+Install SSHDroid, import your SSH key, and I recommend disabling password access since this is for the root account.
+#+You may also need to install 'rsync backup for Android' or something else with rsync and add it to your $PATH
+
 #WebOS option: -w
 #+Client dependencies: Bash, OpenSSH (daemon), rsync (client), ipkg, sudo
 #++You'll need to install most of this software yourself, WebOS does not come with it.  You should also use Wifi, not EVDO/3G.
@@ -45,7 +53,7 @@
 
 #Linux OS option: -l
 #+Client dependencies: Bash, OpenSSH (daemon), rsync (client), sort, [apt-cache + dpkg || rpm || ipkg], sudo
-#+Server dependencies: Bash, rsync (daemon), OpenSSH (client and server)
+#+Server dependencies: Bash, OpenSSH (client)
 #+To use the package list on Debian-like systems use: dpkg --set-selections < /path/to/packages_list && apt-get -u dselect-upgrade
 
 #getmail option: -g
@@ -152,6 +160,14 @@ nummonthlydumpfiles="13" #Number of monthly policy files or MySQL dumps to keep.
 numyearlydumpfiles="5" #Number of yearly policy files or MySQL dumps to keep.
 numrunlogfiles="365" #Number of script error logs to keep.
 
+#Android configuration
+androidbkupsrc=( "Peridot" "Umber" ) #Add Android backup sources here, double quoted, space delimited.
+android_private_ssh_key="/home/backupuser/.ssh/id_rsa"
+cat << EOF > /tmp/exclude_android
+/sys
+/proc
+EOF
+
 #WebOS configuration
 webossrc=( "Tangelo" ) #Add Palm WebOS backup sources here, double quoted, space delimited.
 
@@ -212,9 +228,9 @@ bkupsrv=$(echo $rsyncbkup | $cutbin --delimiter="@" -f2 | $cutbin --delimiter=":
 startdate=$($date) #Usedn for logging
 starttime=$($time) #Used for logging
 btime=$($datebin -u +%s) #Used for time calculation
-OPTSTRING=":wanvmldghopPV"
-virtualboxopt=0;laptoplinopt=0;laptopwinopt=0;wosopt=0;apacheopt=0;getmailopt=0;emailnotifyopt=0;vmwareopt=0;mysqlopt=0;linosopt=0; #Unset variables are icky
-remotenason=0;fatalerrnum=0;errnum=0;logfail=0;bytessentrcvdtotal=0;scriptcanceled=0;lockfail=0;dataopt=0;verbosity=0 #Unset variables are icky
+OPTSTRING=":cwanvmldghopPV"
+virtualboxopt=0;laptoplinopt=0;laptopwinopt=0;wosopt=0;apacheopt=0;getmailopt=0;emailnotifyopt=0;vmwareopt=0;mysqlopt=0;linosopt=0 #Unset variables are icky
+remotenason=0;fatalerrnum=0;errnum=0;logfail=0;bytessentrcvdtotal=0;scriptcanceled=0;lockfail=0;dataopt=0;verbosity=0;androidopt=0 #Unset variables are icky
 PATH=/bin:/usr/bin:/sbin:/usr/sbin/:/usr/local/bin:/usr/local/sbin #Start with a known $PATH
 umask 007
 
@@ -266,6 +282,7 @@ function _makeoutput {
   if [ "$lockfail" != "1" -a "$logfail" != "1" ];then
     echo "Log: $log"
   fi
+  [ "$androidopt" = 1 ] && echo "Android options enabled for: ${androidbkupsrc[*]}."
   [ "$linosopt" = 1 ] && echo "Linux OS option enabled for: ${linbkupsrc[*]}."
   [ "$wosopt" = 1 ] && echo "WebOS option enabled for: ${webossrc[*]}."
   [ "$apacheopt" = 1 ] && echo "Apache2 option enabled for: $apachesrv."
@@ -351,6 +368,8 @@ trap _handletrap 1 2 3 15 # Terminate script when receiving signal
 
 while getopts "$OPTSTRING" OPT; do #The remotenason and DATOPT options are custom for my network.
   case $OPT in
+    c)
+      androidopt=1 ;;
     w)
       wosopt=1 ;;
     a)
@@ -383,7 +402,8 @@ while getopts "$OPTSTRING" OPT; do #The remotenason and DATOPT options are custo
       verbosity=1 ;;
     h)
       $catbin << EOF
-Usage: $script {-w -a -v -m -l -d -p -P -n -V -h}
+Usage: $script {-c -w -a -v -m -l -d -p -P -n -V -h}
+-c : Enabled the Android option
 -w : Enables the Palm WebOS option
 -g : Enables the getmail option
 -a : Enables the Apache2 option
@@ -561,6 +581,35 @@ if [ "$laptopwinopt" = 1 ];then
   else
     _printerr "ERROR - $LINENO - SSH to backup source Sangria failed.  Skipping client." 1>>$log
   fi
+fi
+
+if [ "$androidopt" = 1 ]; then #Android section
+  for androidclient in "${androidbkupsrc[@]}";do
+    echo "$($time) - Backing up Android on $androidclient" | $teebin -a $log
+    echo "$($time) - Checking and creating required directories." 1>>$log
+    reqdir=( "$bkupdir/$androidclient" "$bkupdir/$androidclient/OS" )
+    for eachreqdir in "${reqdir[@]}";do
+      if [ ! -d "$eachreqdir" ]; then 
+	$mkdirbin -p "$eachreqdir" 1>>$log || _printerr "ERROR - $LINENO - Unable to create $eachreqdir."
+	if [ "$?" != "0" ];then
+	  _printerr "ERROR - $LINENO - Unable to create $eachreqdir on $bkupsrv for $androidclient." 1>>$log
+	  continue
+	fi
+      fi
+    done
+    echo "$($time) - Checking and adding SSH keys." 1>>$log
+    if ! $grepbin -i $androidclient /home/$sshuser/.ssh/known_hosts 1> /dev/null; then
+      echo "Host key for $androidclient:" 1>> /home/$sshuser/.ssh/known_hosts
+      $sshkeyscanbin -t rsa,dsa $androidclient 1>> /home/$sshuser/.ssh/known_hosts || _printerr "ERROR - $LINENO - Unable to add host key for $androidclient to known host key list."
+    fi
+    echo "$($time) - Starting remote commands." 1>>$log
+    if $sshbin -i $android_private_ssh_key root@$androidclient -p $sshport : 1>>$log; then #Verify SSH works
+     echo "$($time) - Starting rsync." 1>>$log
+      $sudobin $rsyncbin -aDH --stats --delete --exclude-from=/tmp/exclude_android -e "$sshbin -l root -i $android_private_ssh_key -p $sshport" ${androidclient}:/ ${bkupdir}/${androidclient}/OS 1>>$log || _printerr "ERROR - $LINENO - Android backup on $androidclient failed."
+    else
+      _printerr "ERROR - $LINENO - SSH to backup source $androidclient failed.  Skipping client."
+    fi
+  done
 fi
 
 if [ "$wosopt" = 1 ]; then #WARNING - THIS OPTION IS OLD AND UNMAINTAINED.
@@ -833,8 +882,9 @@ $lsbin -1 -t $($dirnamebin $log)/*-$script.log* | $awkbin --assign=numrunlogfile
 
 echo "$($time) - Cleaning up." | $teebin -a $log #Some commands in the script are ran with sudo so we need to fix ownership.  World writable files are bad and I have specific needs so for me I wrote an additional script.
   $rmbin -f /tmp/exclude_linuxos
+  $rmbin -f /tmp/exclude_android
   echo "$($time) - Running permfix on Cyan." 1>>$log
-  $sudobin /media/Data/Scripts/permfix-data.sh || echo "ERROR - $LINENO - Failed to run permfix script on $bkupsrv." 1>>$log
+#  $sudobin /media/Data/Scripts/permfix-data.sh || echo "ERROR - $LINENO - Failed to run permfix script on $bkupsrv." 1>>$log
   if [ "$remotenason" = 1 ];then
     echo "$($time) - Checking and adding SSH keys." 1>>$log
     if ! $grepbin -i teal /home/$sshuser/.ssh/known_hosts 1> /dev/null; then
@@ -842,9 +892,9 @@ echo "$($time) - Cleaning up." | $teebin -a $log #Some commands in the script ar
       $sshkeyscanbin -t rsa,dsa teal 1>> /home/$sshuser/.ssh/known_hosts || _printerr "ERROR - $LINENO - Unable to add host key for Teal to known host key list."
     fi
     echo "$($time) - Running permfix on Teal." 1>>$log
-    $sshbin $sshuser@Teal -p $sshport "{
-      $sudobin /media/Data/Scripts/permfix-data.sh || echo "ERROR - $LINENO - Failed to run permfix script on Teal."
-    }" 1>>$log
+#    $sshbin $sshuser@Teal -p $sshport "{
+#      $sudobin /media/Data/Scripts/permfix-data.sh || echo "ERROR - $LINENO - Failed to run permfix script on Teal."
+#    }" 1>>$log
   fi
 
 _printoutput

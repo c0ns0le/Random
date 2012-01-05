@@ -15,6 +15,7 @@
 
 ##### Revision history
 #
+# 0.6 - 2012-01-05 - Added home directory creator for new users, fixed a small bug with one test. - Jeff White
 # 0.5 - 2012-01-05 - Added quota option with 'edquota'. - Jeff White
 # 0.4 - 2011-08-31 - Untracked changes. - Jeff White
 #
@@ -243,11 +244,13 @@ EOF
   echo
   cat "${ldif_dir}/${new_user_name}-addto-${new_users_primary_group_name}.ldif"
   echo
+  echo "To create the user's home directory: mkdir -p /home/${new_users_primary_group_name}/$new_user_name"
+  echo
+  #This next line will be re-written once we move to Gluster...
+  echo "To configure the user's disk quota: ssh storage0.frank.sam.pitt.edu \"edquota -p haggis $new_user_name\""
+  echo
   echo "Don't forget to add the new user to the SSLVPN group 'CSSD - SSLVPN SAM Users'."
   echo "After you add the entries, try to search them by invoking this script again and make sure everything looks correct."
-
-  #This will be re-written once we move to Gluster...
-  echo "To configure the user's disk quota: ssh storage0.frank.sam.pitt.edu \"edquota -p haggis $new_user_name\""
 
 elif [ "$user_response" = "5" ];then #Add a user to an existing group
   $dialogbin --inputbox "Enter the username of the user:" 8 40 2>"${temp_dir}/add_member_which_username" || _print-stdout-then-exit "Bye" 0
@@ -378,7 +381,7 @@ elif [ "$user_response" = "7" ];then #Work with Gold
     $dialogbin --inputbox "Enter the name of the existing project:" 8 40 2>"${temp_dir}/gold_project_name" || _print-stdout-then-exit "Bye" 0
     gold_project_name=$(cat "${temp_dir}/gold_project_name")
     $glsproject | $grepbin "^$gold_project_name" >/dev/null
-    if { "$?" != "0" ];then #If the project name is not found in the output of $glsproject...
+    if [ "$?" != "0" ];then #If the project name is not found in the output of $glsproject...
       _print-stderr-then-exit "Project $gold_project_name does not exist in Gold." 2
     fi
     $sudobin -u gold $gmkuserbin -n "$(cat "${temp_dir}/new_gold_user_real_name")" -E "$(cat "${temp_dir}/new_gold_user_email")" -p "$gold_project_name" $new_gold_user_uca_name && echo "Success."

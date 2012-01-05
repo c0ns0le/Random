@@ -1,14 +1,24 @@
 #!/bin/bash
 #Description: Bash script to create a new group or user on SAM's Frank HPC cluster.
 #Written By: Jeff White of The University of Pittsburgh (jaw171@pitt.edu)
-#Version Number: 0.4
-#Revision Date: 8-31-11
-#License: This script is released under version three (3) of the GNU General Public License (GPL) of the FSF, 
-#+the text of which is available at http://www.fsf.org/licensing/licenses/gpl-3.0.html
-##This is a free script, you are free to change and redistribute it.  There is NO WARRANTY, to the extent permitted by law.
 #Exit codes:
 #+ 1 - The script had an unexpected error
 #+ 2 - Most likely a user error such as an unset variable or null string
+
+##### License
+# This script is released under version three (3) of the GNU General Public License (GPL) of the 
+# Free Software Foundation (FSF), the text of which is available at http://www.fsf.org/licensing/licenses/gpl-3.0.html.
+# Use or modification of this script implies your acceptance of this license and its terms.
+# This is a free script, you are free to change and redistribute it with the terms of the GNU GPL.
+# There is NO WARRANTY, not even for FITNESS FOR A PARTICULAR USE to the extent permitted by U.S. law.
+#####
+
+##### Revision history
+#
+# 0.5 - 2012-01-05 - Added quota option with 'edquota'. - Jeff White
+# 0.4 - 2011-08-31 - Untracked changes. - Jeff White
+#
+#####
 
 script="${0##*/}"
 ldap_uri="ldap://sam-ldap-prod-01.cssd.pitt.edu"
@@ -228,7 +238,7 @@ EOF
   echo
   cat "${ldif_dir}/${new_user_name}-active-group.ldif"
   echo
-  echo "You will need to have the user be a member of their primary grup.  Here is the ldif for that."
+  echo "You will need to have the user be a member of their primary group.  Here is the ldif for that."
   echo "$ldapmodifybin -axWZZ -H $ldap_uri -D "$ldap_bind_dn" -f ${ldif_dir}/${new_user_name}-addto-${new_users_primary_group_name}.ldif"
   echo
   cat "${ldif_dir}/${new_user_name}-addto-${new_users_primary_group_name}.ldif"
@@ -236,9 +246,8 @@ EOF
   echo "Don't forget to add the new user to the SSLVPN group 'CSSD - SSLVPN SAM Users'."
   echo "After you add the entries, try to search them by invoking this script again and make sure everything looks correct."
 
-###
-### FIXME: Add code to set the default quota here
-###
+  #This will be re-written once we move to Gluster...
+  echo "To configure the user's disk quota: ssh storage0.frank.sam.pitt.edu \"edquota -p haggis $new_user_name\""
 
 elif [ "$user_response" = "5" ];then #Add a user to an existing group
   $dialogbin --inputbox "Enter the username of the user:" 8 40 2>"${temp_dir}/add_member_which_username" || _print-stdout-then-exit "Bye" 0

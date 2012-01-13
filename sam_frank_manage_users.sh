@@ -15,6 +15,8 @@
 
 ##### Revision history
 #
+# 0.8beta - 2012-01-13 - Added a delete user from porject option for Gold, added home directory chown. - Jeff White
+# 0.7 - 2012-01-09 - Added Gluster quota support. - Jeff White
 # 0.6 - 2012-01-05 - Added home directory creator for new users, fixed a small bug with one test. - Jeff White
 # 0.5 - 2012-01-05 - Added quota option with 'edquota'. - Jeff White
 # 0.4 - 2011-08-31 - Untracked changes. - Jeff White
@@ -26,6 +28,7 @@ ldap_uri="ldap://sam-ldap-prod-01.cssd.pitt.edu"
 temp_dir="/tmp/${script}.working"
 ldif_dir=~/ldifs
 ldap_bind_dn="cn=diety,dc=frank,dc=sam,dc=pitt,dc=edu"
+gluster_volume_name="vol_home0"
 ldapsearchbin="/usr/bin/ldapsearch"
 ldapmodifybin="/usr/bin/ldapmodify"
 dialogbin="/usr/bin/dialog"
@@ -41,6 +44,7 @@ gdepositbin="/opt/gold/2.2.0.1/bin/gdeposit"
 glsproject="/opt/gold/2.2.0.1/bin/glsproject"
 gchproject="/opt/gold/2.1.12.2/bin/gchproject"
 glsuser="/opt/gold/2.2.0.1/bin/glsuser"
+glusterbin="/usr/sbin/gluster"
 
 function _print_stderr { # Usage: _print_stderr "Some error text"
 echo "$1" 1>&2
@@ -62,7 +66,7 @@ Usage: $script {-h}
 This script is to manage the users of the Frank HPC cluster ran by SAM and CSSD of the University of Pittsburgh.
 When ran with no options this will display an ncurses-based interface to control users and groups.
 WARNING: This script can be destructive, don't do silly things!
-Version: 0.4
+Version: 0.8beta
 Author: Jeff White (jaw171@pitt.edu)
 License: This script is released under version three (3) of the GNU General Public License (GPL) of the Free Software Foundation (FSF)
 EOF
@@ -80,7 +84,7 @@ $dialogbin --menu "What would you like to do?" 15 70 7 \
 "3" "Create a new group" \
 "4" "Create a new user" \
 "5" "Add a user to an existing group" \
-"6" "Edit the disk quota for a user" \
+"6" "Edit the disk quota for a user or group" \
 "7" "Work with Gold" 2>"${temp_dir}/ans" || _print-stdout-then-exit "Bye" 0
 
 user_response="$(cat "${temp_dir}/ans")"
@@ -244,10 +248,17 @@ EOF
   echo
   cat "${ldif_dir}/${new_user_name}-addto-${new_users_primary_group_name}.ldif"
   echo
-  echo "To create the user's home directory: mkdir -p /home/${new_users_primary_group_name}/$new_user_name"
+  echo "To create the user's home directory: mkdir -p /home/${new_users_primary_group_name}/$new_user_name ; chown $new_user_name:$new_users_primary_group_name /home/${new_users_primary_group_name}/$new_user_name"
   echo
-  #This next line will be re-written once we move to Gluster...
-  echo "To configure the user's disk quota: ssh storage0.frank.sam.pitt.edu \"edquota -p haggis $new_user_name\""
+  $glusterbin volume quota $gluster_volume_name list > "${temp_dir}/gluster_quota_list"
+  current_quota_limit=$($grepbin "^/$new_users_primary_group_name " "${temp_dir}/gluster_quota_list" | $awkbin '{print $2}')
+  if [ ! -z "$current_quota_limit" ];then
+    echo
+    echo "WARNING: The user's group $new_users_primary_group_name has a quota already, a user quota may not be needed!"
+    echo
+  fi
+  echo
+  echo "To set the user's disk quota: $glusterbin volume quota $gluster_volume_name limit-usage /home/${new_users_primary_group_name}/$new_user_name 100G"
   echo
   echo "Don't forget to add the new user to the SSLVPN group 'CSSD - SSLVPN SAM Users'."
   echo "After you add the entries, try to search them by invoking this script again and make sure everything looks correct."
@@ -291,55 +302,79 @@ EOF
   echo
   echo "After you add the entry, try to search it by invoking this script again and make sure everything looks correct."
 
-elif [ "$user_response" = "6" ];then #Edit the disk quota for a user
-  if [ "$HOSTNAME" != "storage0.localdomain" ]; then
-    _print-stderr-then-exit "$LINENO - This part of the script must be ran only on the storage node, which this box is not."
-    exit 2
-  fi
-  $dialogbin --menu "What would you like to do?" 11 70 2 \
+elif [ "$user_response" = "6" ];then #Edit the disk quota for a user or group
+  $dialogbin --menu "What would you like to do?" 11 70 4 \
   "1" "Display the quota usage of a user" \
-  "2" "Change the quota for a user" 2>"${temp_dir}/ans" || _print-stdout-then-exit "Bye" 0
-  $dialogbin --inputbox "Enter the username:" 8 40 2>"${temp_dir}/user_to_check_quota" || _print-stdout-then-exit "Bye" 0
-  user_to_check_quota="$(cat "${temp_dir}/user_to_check_quota")"
-  $ldapsearchbin -LLLx -H "$ldap_uri" -b "ou=people,dc=frank,dc=sam,dc=pitt,dc=edu" "(cn="$user_to_check_quota")" > "${temp_dir}/userinfo"
-  if [ ! -s "${temp_dir}/userinfo" ];then
-    _print-stderr-then-exit "$LINENO - The user $user_to_check_quota was not found." 2
-  else
-    if [ "$user_response" = "1" ];then #Display the quota usage of a user
-      $xfs_quotabin quota -hu $user_to_check_quota > "${temp_dir}/quota_of_$user_to_check_quota"
-      if [ -s "${temp_dir}/quota_of_$user_to_check_quota" ];then
-	echo
-	echo "Blocks is how much is in use by the user, quota is the soft limit, limit is the hard limit."
-	cat "${temp_dir}/quota_of_$user_to_check_quota"
-	echo
-	echo "To check the quota of all users and groups: $xfs_quotabin -xc 'report -h'"
-	echo
+  "2" "Display the quota usage of a group" \
+  "3" "Change the quota for a user" \
+  "4" "Change the quota for a group" 2>"${temp_dir}/ans" || _print-stdout-then-exit "Bye" 0
+  user_response="$(cat "${temp_dir}/ans")"
+  $glusterbin volume quota $gluster_volume_name list > "${temp_dir}/gluster_quota_list"
+  if [ "$user_response" = "1" -o "$user_response" = "3" ];then #Display or change the quota usage of a user
+    $dialogbin --inputbox "Enter the username:" 8 40 2>"${temp_dir}/username" || _print-stdout-then-exit "Bye" 0
+    username=$(cat "${temp_dir}/username")
+    #Get the user's information from LDAP so we can get the home directory path
+    $ldapsearchbin -LLLx -H "$ldap_uri" -b "ou=people,dc=frank,dc=sam,dc=pitt,dc=edu" "(cn=$username)" > "${temp_dir}/userinfo"
+    if [ -s "${temp_dir}/userinfo" ];then
+      user_homedir=$($awkbin -F'; ' '/^homeDirectory/ {print $2}' "${temp_dir}/userinfo")
+      current_quota_limit=$($grepbin "^$user_homedir" "${temp_dir}/gluster_quota_list" | $awkbin '{print $2}')
+      if [ "$user_response" = "1" ];then #Display the quota usage of a user
+	if [ -z "$current_quota_limit" ];then
+	  echo
+	  echo "User ${username}'s home directory $user_homedir has no quota limit set." 0
+	  echo
+	else
+	  current_quota_usage=$($grepbin "^$user_homedir" "${temp_dir}/gluster_quota_list" | $awkbin '{print $3}')
+	  echo
+	  echo "Current quota usage of ${username}'s home directory $user_homedir is $current_quota_usage of the limit $current_quota_limit."
+	  echo
+	fi
+      elif [ "$user_response" = "3" ];then #Change the quota usage of a user
+	$dialogbin --inputbox "Enter the desired quota limit in GB:" 8 40 2>"${temp_dir}/quota_limit" || _print-stdout-then-exit "Bye" 0
+	$awkbin '!/^[+-]?\d+$/ {exit 1}' ${temp_dir}/quota_limit || _print-stderr-then-exit "$LINENO - Desired quota limit entered was not a number." 2
+	$glusterbin volume quota $gluster_volume_name limit-usage $user_homedir $(cat "${temp_dir}/quota_limit)GB" || _print-stderr-then-exit "$LINENO - Failed to set quota on $user_homedir." 2
       else
-	_print-stderr-then-exit "$LINENO - The user $user_to_check_quota doesn't have any quota stats, maybe they never logged in?" 2
-      fi
-    elif [ "$user_response" = "2" ];then #Change the quota for a user
-      echo "FEATURE NOT TESTED - EXITING"
-      exit 0
-      $dialogbin --inputbox "Enter the soft limit to set \(as the number of GB - standard is 90\):" 8 40 2>"${temp_dir}/quota_soft_limit" || _print-stdout-then-exit "Bye" 0
-      $dialogbin --inputbox "Enter the hard limit to set \(as the number of GB - standard is 100\):" 8 40 2>"${temp_dir}/quota_hard_limit" || _print-stdout-then-exit "Bye" 0
-      quota_soft_limit="$(cat "${temp_dir}/quota_soft_limit" | $sedbin -e 's/[a-z]//I')"
-      quota_hard_limit="$(cat "${temp_dir}/quota_hard_limit" | $sedbin -e 's/[a-z]//I')"
-      if [ -z "$quota_soft_limit" -o -z "$quota_hard_limit" ];then
-	_print-stderr-then-exit "$LINENO - Some of the information I need is null, did you enter anything for quota_soft_limit and quota_hard_limit?" 2
-      else
-	$xfs_quotabin limits xfs_quota -x -c "limit bsoft=${quota_soft_limit}g bhard=${quota_hard_limit}g $user_to_check_quota"
+	_print-stderr-then-exit "$LINENO - I couldn't figure out what you wanted to do.  I'm sorry, this hurts me more than it hurts you." 1
       fi
     else
-      _print-stderr-then-exit "$LINENO - I couldn't figure out what you wanted to do.  I'm sorry, this hurts me more than it hurts you." 1
+      echo
+      echo "User $username does not exist or user details could not be pulled from LDAP."
+      echo
     fi
+  elif [ "$user_response" = "2" -o "$user_response" = "4" ];then #Display or change the quota usage of a group
+    $dialogbin --inputbox "Enter the groupname:" 8 40 2>"${temp_dir}/groupname" || _print-stdout-then-exit "Bye" 0
+    groupname=$(cat "${temp_dir}/groupname")
+    current_quota_limit=$($grepbin "^/$groupname " "${temp_dir}/gluster_quota_list" | $awkbin '{print $2}')
+      if [ "$user_response" = "2" ];then #Display the quota usage of a group
+	if [ -z "$current_quota_limit" ];then
+	  echo
+	  echo "User ${groupname}'s home directory /$groupname has no quota limit set." 0
+	  echo
+	else
+	  current_quota_usage=$($grepbin "^/$groupname " "${temp_dir}/gluster_quota_list" | $awkbin '{print $3}')
+	  echo
+	  echo "Current quota usage of ${groupname}'s home directory /$groupname is $current_quota_usage of the limit $current_quota_limit."
+	  echo
+	fi
+      elif [ "$user_response" = "3" ];then #Change the quota usage of a group
+	$dialogbin --inputbox "Enter the desired quota limit in GB:" 8 40 2>"${temp_dir}/quota_limit" || _print-stdout-then-exit "Bye" 0
+	$awkbin '!/^[+-]?\d+$/ {exit 1}' ${temp_dir}/quota_limit || _print-stderr-then-exit "$LINENO - Desired quota limit entered was not a number." 2
+	$glusterbin volume quota $gluster_volume_name limit-usage /$groupname $(cat "${temp_dir}/quota_limit)GB" || _print-stderr-then-exit "$LINENO - Failed to set quota on /$groupname." 2
+      else
+	_print-stderr-then-exit "$LINENO - I couldn't figure out what you wanted to do.  I'm sorry, this hurts me more than it hurts you." 1
+      fi
+  else
+    _print-stderr-then-exit "$LINENO - I couldn't figure out what you wanted to do.  I'm sorry, this hurts me more than it hurts you." 1
   fi
+
 elif [ "$user_response" = "7" ];then #Work with Gold
   $dialogbin --menu "What information do you have?" 11 70 5 \
   "1" "Search for a user or project" \
   "2" "Create a new project" \
   "3" "Create a new user and add them to a project" \
   "4" "Add an existing user to an existing project" \
-  "5" "Add credits to a project" 2>"${temp_dir}/ans" || _print-stdout-then-exit "Bye" 0
+  "5" "Remove a user from a project" \
+  "6" "Add credits to a project" 2>"${temp_dir}/ans" || _print-stdout-then-exit "Bye" 0
   user_response="$(cat "$temp_dir/ans")"
   if [ "$user_response" = "1" ];then #Search for a user or project
     $dialogbin --inputbox "Enter the username or project name to search for:" 8 40 2>"${temp_dir}/thing_to_search_for" || _print-stdout-then-exit "Bye" 0
@@ -397,7 +432,19 @@ elif [ "$user_response" = "7" ];then #Work with Gold
       _print-stderr-then-exit "Project $gold_project_name does not exist in Gold." 2
     fi
     $sudobin -u gold $gchproject --addUsers "$existing_gold_user_uca_name" -p "$gold_project_name"
-  elif [ "$user_response" = "5" ];then #Add credits to a project
+  elif [ "$user_response" = "5" ];then #Remove a user from a project
+    $dialogbin --inputbox "Enter the user name of the existing user (e.g. jaw171):" 8 40 2>"${temp_dir}/existing_gold_user_uca_name" || _print-stdout-then-exit "Bye" 0
+    existing_gold_user_uca_name="$(cat "${temp_dir}/existing_gold_user_uca_name")"
+    if ! $glsuser | $grepbin -e "^$existing_gold_user_uca_name" >/dev/null ;then #If the username is not found in the output of $glsuser...
+      _print-stderr-then-exit "User $existing_gold_user_uca_name does not exist in Gold." 2
+    fi
+    $dialogbin --inputbox "Enter the name of the existing project:" 8 40 2>"${temp_dir}/gold_project_name" || _print-stdout-then-exit "Bye" 0
+    gold_project_name="$(cat "${temp_dir}/gold_project_name")"
+    if ! $glsproject | $grepbin -e "^$gold_project_name" >/dev/null ;then #If the project name is not found in the output of $glsproject...
+      _print-stderr-then-exit "Project $gold_project_name does not exist in Gold." 2
+    fi
+    $sudobin -u gold $gchproject --delUsers "$existing_gold_user_uca_name" -p "$gold_project_name"
+  elif [ "$user_response" = "6" ];then #Add credits to a project
     $dialogbin --inputbox "Enter the name of the existing project:" 8 40 2>"${temp_dir}/gold_project_name" || _print-stdout-then-exit "Bye" 0
     gold_project_name="$(cat "${temp_dir}/gold_project_name")"
     if ! $glsproject | $grepbin -e "^$gold_project_name" >/dev/null ;then #If the project name is not found in the output of $glsproject...

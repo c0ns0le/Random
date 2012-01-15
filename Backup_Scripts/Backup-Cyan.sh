@@ -1,7 +1,7 @@
 #!/bin/bash
 #shopt -s -o noclobber
 #shopt -s -o nounset
-#Description: Bash script to back up Linux, MySQL, Apache2, VMware Workstation, Oracle VirtualBox, Palm WebOS, and more.
+#Description: Bash script to back up Linux, MySQL, Apache httpd, VMware Workstation, Oracle VirtualBox, Palm WebOS, and Android.
 #Written By: Jeff White (jwhite530@gmail.com)
 
 ##### License
@@ -14,6 +14,8 @@
 
 ##### Revision history
 #
+# 1.9.2 - 2012-01-14 - Added Skobeloff and Vermilion as a LinuxOS clients and Skobeloff as a MySQL client, removed Viridian as a LinuxOS and MySQL client, removed an old config directive for the LinuxOS section. - Jeff White
+# 1.9.1 - 2011-12-24 - Removed permfix script, removed some hard coded paths to binaries, re-wrote apache httpd section, fixed some documentation. - Jeff White
 # 1.9 - 2011-12-23 - Added Android option. - Jeff White
 # 1.8.4 - 2011-12-13 - Excluded /bricks from Linux OS backups. - Jeff White
 # 1.8.3 - 2011-12-12 - Minor fixes with logging. - Jeff White
@@ -49,7 +51,7 @@
 #WebOS option: -w
 #+Client dependencies: Bash, OpenSSH (daemon), rsync (client), ipkg, sudo
 #++You'll need to install most of this software yourself, WebOS does not come with it.  You should also use Wifi, not EVDO/3G.
-#+Server dependencies: Bash, rsync (daemon), OpenSSH (client and server)
+#+Server dependencies: Bash, rsync (daemon), OpenSSH (client and daemon)
 
 #Linux OS option: -l
 #+Client dependencies: Bash, OpenSSH (daemon), rsync (client), sort, [apt-cache + dpkg || rpm || ipkg], sudo
@@ -58,7 +60,7 @@
 
 #getmail option: -g
 #+Server dependencies: getmail4 (and its configuration)
-#+This is designed for gmail but would work with any pop/imap email.  See the getmail Website for information on how to set up the config file, but here's mine:
+#+This is designed for gmail but would work with any pop/imap email.  See the getmail Website for information on how to set up the config file, but here's one for gmail:
 #+/etc/getmail/somedude-gmail.com 
 #[retriever]
 #type = SimpleIMAPSSLRetriever
@@ -113,35 +115,35 @@
 #E-mail notification option: -n
 #+Server dependencies: mail (already configured to be able to send mail, I use ssmtp for this but any MTA should work)
 
-#To do: add Android option, add Tomato (firewall) option: http://tomatousb.org/tut:backup-settings-logs-more-to-usb-drive-script
+#To do: add Tomato (firewall) option: http://tomatousb.org/tut:backup-settings-logs-more-to-usb-drive-script
 
-#Needed binaries: If you want to trust $PATH instead, just use "rsync" instead of "/usr/bin/rsync"
-rsyncbin="/usr/bin/rsync"
-sedbin="/bin/sed"
-datebin="/bin/date"
-sshkeyscanbin="/usr/bin/ssh-keyscan"
-sshbin="/usr/bin/ssh"
-getmailbin="/usr/bin/getmail"
-sudobin="/usr/bin/sudo"
-findbin="/usr/bin/find"
-dirnamebin="/usr/bin/dirname"
+#Needed binaries: If you want to trust $PATH instead, just use "foo" instead of "/path/to/foo"
+rsyncbin="rsync"
+sedbin="sed"
+datebin="date"
+sshkeyscanbin="ssh-keyscan"
+sshbin="ssh"
+getmailbin="getmail"
+sudobin="sudo"
+findbin="find"
+dirnamebin="dirname"
 awkbin="/usr/bin/awk"
-teebin="/usr/bin/tee"
-bcbin="/usr/bin/bc"
-grepbin="/bin/grep"
-cutbin="/usr/bin/cut"
-catbin="/bin/cat"
-mvbin="/bin/mv"
-mkdirbin="/bin/mkdir"
-rmbin="/bin/rm"
-lsbin="/bin/ls"
-sleepbin="/bin/sleep"
-cpbin="/bin/cp"
-xargsbin="/usr/bin/xargs"
-touchbin="/usr/bin/touch"
-vmrunbin="/usr/bin/vmrun"
-revbin="/usr/bin/rev"
-scpbin="/usr/bin/scp"
+teebin="tee"
+bcbin="bc"
+grepbin="grep"
+cutbin="cut"
+catbin="cat"
+mvbin="mv"
+mkdirbin="mkdir"
+rmbin="rm"
+lsbin="ls"
+sleepbin="sleep"
+cpbin="cp"
+xargsbin="xargs"
+touchbin="touch"
+vmrunbin="vmrun"
+revbin="rev"
+scpbin="scp"
 
 #General configuration - you must set these no matter what option you are using!
 script=${0##*/}
@@ -172,8 +174,7 @@ EOF
 webossrc=( "Tangelo" ) #Add Palm WebOS backup sources here, double quoted, space delimited.
 
 #Linux OS configuration
-linos="/etc /boot /var/log /var/mail /var/games /var/spool/cron /usr/local /opt /home /root" #Change source directories to be backed up on Linux machines here.
-linbkupsrc=( "Indigo" "Cyan" "Teal" "Viridian" "Urobilin" ) #Add Linux backup sources here, double quoted, space delimited.
+linbkupsrc=( "Indigo" "Cyan" "Teal" "Viridian" "Urobilin" "Skobeloff" "Vermilion" ) #Add Linux backup sources here, double quoted, space delimited.
 cat << EOF > /tmp/exclude_linuxos
 /proc
 /sys
@@ -209,14 +210,14 @@ vboxmanage="/usr/bin/VBoxManage"
 vboxvmdir="/home/jaw171/VM"
 
 #MySQL configuration
-mysqlsrv="Viridian" #The hostname of the MySQL server.
+mysqlsrv="Skobeloff" #The hostname of the MySQL server.
 mysqluser=$($awkbin -F'=' '$1 ~ /user/ { print $2 }' /etc/mysql/mysql.cred)
 mysqlpass=$($awkbin -F'=' '$1 ~ /pass/ { print $2 }' /etc/mysql/mysql.cred)
 
 #Apache2 configuration
 apachesrv="Viridian" #The hostname of the Apache2 server.
 apacheserverroot="/etc/apache2" #Where the config files are held.
-apachedocroot="/www" #Where the Website files are held. Delimted by a single space if using multiple directories.
+apachedocroot="/www" #Where the Website files are held. Delimted by a space if using multiple directories.
 
 #Custom settings for my network
 rsyncdata="white@192.168.10.150::Data"
@@ -229,7 +230,7 @@ startdate=$($date) #Usedn for logging
 starttime=$($time) #Used for logging
 btime=$($datebin -u +%s) #Used for time calculation
 OPTSTRING=":cwanvmldghopPV"
-virtualboxopt=0;laptoplinopt=0;laptopwinopt=0;wosopt=0;apacheopt=0;getmailopt=0;emailnotifyopt=0;vmwareopt=0;mysqlopt=0;linosopt=0 #Unset variables are icky
+virtualboxopt=0;laptoplinopt=0;laptopwinopt=0;wosopt=0;apachehttpdopt=0;getmailopt=0;emailnotifyopt=0;vmwareopt=0;mysqlopt=0;linosopt=0 #Unset variables are icky
 remotenason=0;fatalerrnum=0;errnum=0;logfail=0;bytessentrcvdtotal=0;scriptcanceled=0;lockfail=0;dataopt=0;verbosity=0;androidopt=0 #Unset variables are icky
 PATH=/bin:/usr/bin:/sbin:/usr/sbin/:/usr/local/bin:/usr/local/sbin #Start with a known $PATH
 umask 007
@@ -285,7 +286,7 @@ function _makeoutput {
   [ "$androidopt" = 1 ] && echo "Android options enabled for: ${androidbkupsrc[*]}."
   [ "$linosopt" = 1 ] && echo "Linux OS option enabled for: ${linbkupsrc[*]}."
   [ "$wosopt" = 1 ] && echo "WebOS option enabled for: ${webossrc[*]}."
-  [ "$apacheopt" = 1 ] && echo "Apache2 option enabled for: $apachesrv."
+  [ "$apachehttpdopt" = 1 ] && echo "Apache2 option enabled for: $apachesrv."
   [ "$vmwareopt" = 1 ] && echo "VMware option enabled."
   [ "$virtualboxopt" = 1 ] && echo "Oracle VirtualBox enabled."
   [ "$mysqlopt" = 1 ] && echo "MySQL option enabled for: $mysqlsrv"
@@ -373,7 +374,7 @@ while getopts "$OPTSTRING" OPT; do #The remotenason and DATOPT options are custo
     w)
       wosopt=1 ;;
     a)
-      apacheopt=1 ;;
+      apachehttpdopt=1 ;;
     g)
       getmailopt=1 ;;
     n)
@@ -664,11 +665,6 @@ if [ "$linosopt" = 1 ]; then #Linux OS section
       $sshkeyscanbin -t rsa,dsa $linclient 1>> /home/$sshuser/.ssh/known_hosts || _printerr "ERROR - $LINENO - Unable to add host key for $linclient to known host key list."
     fi
     echo "$($time) - Starting remote commands." 1>>$log
-    if [ "$linclient" = "Viridian" ];then #For the hosts in my DMZ
-      rsyncbkup="backupuser@192.168.1.150::Backup"
-    else
-      rsyncbkup="backupuser@192.168.10.150::Backup"
-    fi
     if $sshbin $sshuser@$linclient -p $sshport : 1>>$log; then #Verify SSH works
       echo "$($time) - Creating package list." 1>>$log
       $sshbin $sshuser@$linclient -p $sshport "{
@@ -771,21 +767,21 @@ if [ "$mysqlopt" = 1 ]; then #MySQL section
   fi
 fi
 
-if [ "$apacheopt" = 1 ]; then #Apache2 section
-  echo "$($time) - Backing up Apache on $apachesrv" | $teebin -a $log
-  echo "$($time) - Checking and adding SSH keys." 1>>$log
-  if ! $grepbin -i $apachesrv /home/$sshuser/.ssh/known_hosts > /dev/null; then
-    echo "Host key for $apachesrv:" 1>> /home/$sshuser/.ssh/known_hosts
-    $sshkeyscanbin -t rsa,dsa $apachesrv 1>> /home/$sshuser/.ssh/known_hosts || _printerr "ERROR - $LINENO - Unable to add host key for $apachesrv to known host key list."
-  fi
-  echo "$($time) - Starting remote commands." 1>>$log
-  if $sshbin $sshuser@$apachesrv -p $sshport : 1>>$log;then
-    $sshbin $sshuser@$apachesrv -p $sshport "{
-      echo "$($time) - Starting rsync."
-      $sudobin $rsyncbin -rltDR --exclude pub $rsyncopt $apacheserverroot $apachedocroot $rsyncbkup/$apachesrv || _printerr "ERROR - $LINENO - Failed to back up Apache on $apachesrv."
-    }" 1>>$log
+if [ "$apachehttpdopt" = 1 ]; then #Apache httpd section
+  echo "$($time) - Backing up Apache httpd on $apachesrv" | $teebin -a $log
+  if $sshbin $sshuser@Teal -p $sshport : 1>>$log;then
+    echo "$($time) - Checking and creating required directories." 1>>$log
+    $mkdirbin -p $bkupdir/$apachesrv/Apache_httpd 1>>$log || _printerr "ERROR - $LINENO - Unable to create Apache httpd backup directory Apache_httpd for $apachesrv in $bkupdir." 1>>$log
+    echo "$($time) - Checking and adding SSH keys." 1>>$log
+    if ! $grepbin -i $apachesrv /home/$sshuser/.ssh/known_hosts > /dev/null; then
+      echo "Host key for $apachesrv:" 1>> /home/$sshuser/.ssh/known_hosts
+      $sshkeyscanbin -t rsa,dsa $apachesrv 1>> /home/$sshuser/.ssh/known_hosts || _printerr "ERROR - $LINENO - Unable to add host key for $apachesrv to known host key list."
+    fi
+    echo "$($time) - Starting rsync." 1>>$log
+    $sudobin $rsyncbin -aDHAXRvvv --stats --progress -e "$sudobin -u $sshuser $sshbin -l $sshuser -p $sshport" --rsync-path="$sudobin $rsyncbin" ${apachesrv}:$apacheserverroot ${bkupdir}/${apachesrv}/Apache_httpd$apacheserverroot
+#    $sudobin $rsyncbin -aDHAXR --stats --progress --exclude pub -e "$sudobin -u $sshuser $sshbin -l $sshuser -p $sshport" --rsync-path="$sudobin $rsyncbin" ${apachesrv}:$apachedocroot ${bkupdir}/${apachesrv}/Apache_httpd$apachedocroot
   else
-    _printerr "ERROR - $LINENO - SSH to $apachesrv failed, skipping Apache section." 1>>$log
+    _printerr "ERROR - $LINENO - SSH to $apachesrv failed, skipping Apache httpd section." 1>>$log
   fi
 fi
 
@@ -868,7 +864,7 @@ fi
 if [ "$dataopt" = 1 ];then #Datastore section
   echo "$($time) - Backing up Data on Cyan" | $teebin -a $log
   echo "$($time) - Checking and adding SSH keys." 1>>$log
-  if ! $grepbin -i teal /home/$sshuser/.ssh/known_hosts > /dev/null; then
+  if ! $grepbin -i "teal" /home/$sshuser/.ssh/known_hosts > /dev/null; then
     echo "Host key for Teal:" 1>> /home/$sshuser/.ssh/known_hosts
     $sshkeyscanbin -t rsa,dsa teal 1>> /home/$sshuser/.ssh/known_hosts || _printerr "ERROR - $LINENO - Unable to add host key for Teal to known host key list."
   fi
@@ -877,24 +873,11 @@ if [ "$dataopt" = 1 ];then #Datastore section
   $sudobin $rsyncbin -a --stats --exclude "VM" --delete-before -e "$sudobin -u $sshuser $sshbin -l $sshuser -p $sshport" --rsync-path="$sudobin $rsyncbin" /media/Data/ Teal:/media/Backup 1>>$log || _printerr "ERROR - $LINENO - Data backup failed!"
 fi
 
-echo "$($time) - Removing old backup logs." | $teebin -a $log
-$lsbin -1 -t $($dirnamebin $log)/*-$script.log* | $awkbin --assign=numrunlogfiles=$numrunlogfiles '{ if (NR > numrunlogfiles) {print}}' | $xargsbin $rmbin -f ; [ $(echo "${PIPESTATUS[*]}" | $sedbin 's/ //g') -eq "000" ] 1>>$log || _printerr "ERROR - $LINENO - Unable to remove old script run logs."
-
-echo "$($time) - Cleaning up." | $teebin -a $log #Some commands in the script are ran with sudo so we need to fix ownership.  World writable files are bad and I have specific needs so for me I wrote an additional script.
+echo "$($time) - Cleaning up." | $teebin -a $log
   $rmbin -f /tmp/exclude_linuxos
   $rmbin -f /tmp/exclude_android
-  echo "$($time) - Running permfix on Cyan." 1>>$log
-#  $sudobin /media/Data/Scripts/permfix-data.sh || echo "ERROR - $LINENO - Failed to run permfix script on $bkupsrv." 1>>$log
-  if [ "$remotenason" = 1 ];then
-    echo "$($time) - Checking and adding SSH keys." 1>>$log
-    if ! $grepbin -i teal /home/$sshuser/.ssh/known_hosts 1> /dev/null; then
-      echo "Host key for Teal:" 1>> /home/$sshuser/.ssh/known_hosts
-      $sshkeyscanbin -t rsa,dsa teal 1>> /home/$sshuser/.ssh/known_hosts || _printerr "ERROR - $LINENO - Unable to add host key for Teal to known host key list."
-    fi
-    echo "$($time) - Running permfix on Teal." 1>>$log
-#    $sshbin $sshuser@Teal -p $sshport "{
-#      $sudobin /media/Data/Scripts/permfix-data.sh || echo "ERROR - $LINENO - Failed to run permfix script on Teal."
-#    }" 1>>$log
-  fi
+
+echo "$($time) - Removing old backup logs." | $teebin -a $log
+$lsbin -1 -t $($dirnamebin $log)/*-$script.log* | $awkbin --assign=numrunlogfiles=$numrunlogfiles '{ if (NR > numrunlogfiles) {print}}' | $xargsbin $rmbin -f ; [ $(echo "${PIPESTATUS[*]}" | $sedbin 's/ //g') -eq "000" ] 1>>$log || _printerr "ERROR - $LINENO - Unable to remove old script run logs."
 
 _printoutput

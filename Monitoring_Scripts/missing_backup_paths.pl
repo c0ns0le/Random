@@ -12,6 +12,7 @@
 
 ##### Revision history
 #
+# 0.4 - 2012-01-24 - Output missing directories to syslog in addition to stdout. - Jeff White
 # 0.3 - 2012-01-24 - Fixed the syslog for NetCool's parsing. - Jeff White
 # 0.2 - 2012-01-23 - Re-write so the script gets the existing included dirs direclty from NetBackup. - Jeff White
 # 0.1 - 2012-01-23 - Initial version. - Jeff White
@@ -40,6 +41,7 @@ my $num_missing_dirs = 0;
 foreach my $each_local_dir (glob("/data/home-login0/*")) {
   if ($dirs_included_in_a_policy !~ m/($each_local_dir)/) {
     print "Directory missing from backup policy: $each_local_dir\n";
+    syslog("LOG_INFO", "Directory missing from backup policy: $each_local_dir -- $0.");
     $num_missing_dirs++
   }
 }

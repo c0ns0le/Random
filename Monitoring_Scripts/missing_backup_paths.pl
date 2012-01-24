@@ -12,6 +12,7 @@
 
 ##### Revision history
 #
+# 0.3 - 2012-01-24 - Fixed the syslog for NetCool's parsing. - Jeff White
 # 0.2 - 2012-01-23 - Re-write so the script gets the existing included dirs direclty from NetBackup. - Jeff White
 # 0.1 - 2012-01-23 - Initial version. - Jeff White
 #
@@ -25,8 +26,8 @@ my $dirs_included_in_a_policy = "";
 my @policy_names = ("Frank-Data-SAM-P","Frank-Data-User1-P","Frank-Data-User2-P");
 
 foreach my $each_policy_name (@policy_names) {
-  open (POLICYDETAILS, "/usr/openv/netbackup/bin/admincmd/bppllist $each_policy_name -l |" ) || die "Failed to run bppllist for policy name $each_policy_name: $!";
-  while ( <POLICYDETAILS> ) {
+  open (POLICYDETAILS, "/usr/openv/netbackup/bin/admincmd/bppllist $each_policy_name -l |") || die "Failed to run bppllist for policy name $each_policy_name: $!";
+  while (<POLICYDETAILS>) {
     if ("$_" =~ m/^INCLUDE/ ) {
       my @include_dir = split(/ /, $_, 2);
       $dirs_included_in_a_policy = "$dirs_included_in_a_policy" . "$include_dir[1]";
@@ -44,6 +45,6 @@ foreach my $each_local_dir (glob("/data/home-login0/*")) {
 }
 
 if ($num_missing_dirs > 0) {
-  print "Missing $num_missing_dirs user directories [$0].\n"; 
-  syslog("LOG_INFO", "CREATE TICKET FOR SE - $num_missing_dirs user directories are not in a backup policy [$0].");
+  print "Missing $num_missing_dirs user directories.\n"; 
+  syslog("LOG_ERR", "NOC-NETCOOL-TICKET: $num_missing_dirs user directories are not in a backup policy -- $0.");
 }

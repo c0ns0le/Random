@@ -11,6 +11,7 @@
 
 ##### Revision history
 #
+# 0.6 - 2012-01-27 - Update for GlusterFS 3.2.5, disabled Gluster mounts. - Jeff White
 # 0.5 - 2011-11-03 - Converted this to a combination of an NFS export of /opt/glusterfs and a special copy of the other files.
 #
 #####
@@ -35,20 +36,18 @@ cat << EOF > /tmp/.glusterfsdirs.$node_number
 /usr/sbin
 /var/log/glusterfs
 /etc/ld.so.conf.d
-/opt/glusterfs/3.2.4/include/glusterfs/
-/opt/glusterfs/3.2.4/lib64/glusterfs/3.2.4/rpc-transport
-/opt/glusterfs/3.2.4/sbin
 /sbin
 EOF
 
 cat << EOF > /tmp/.glusterfsfiles.$node_number
+/sbin/mount.glusterfs
 /etc/glusterfs/glusterd.vol
+/etc/init.d/glusterd
 /etc/ld.so.conf.d/glusterfs.conf
 /usr/sbin/gluster
 /usr/sbin/glusterd
 /usr/sbin/glusterfs
 /usr/sbin/glusterfsd
-/sbin/mount.glusterfs
 EOF
 
 #Load the fuse module on the compute node
@@ -66,8 +65,8 @@ cat /tmp/.glusterfsfiles.$node_number | while read -r each_file;do
 done
 
 #Mount the glusterfs volume(s) on the compute node
-$bpsh_bin $node_number mkdir -p /gluster/home || _print-stderr-then-exit "GlusterFS initialization failed on line $LINENO in script $script on node $node_number." 1
-$bpsh_bin $node_number /sbin/mount.glusterfs storage0-dev.cssd.pitt.edu:/vol_home -o backupvolfile-server=storage1-dev.cssd.pitt.edu /gluster/home || _print-stderr-then-exit "GlusterFS initialization failed on line $LINENO in script $script on node $node_number." 1
+#$bpsh_bin $node_number mkdir -p /gluster/home || _print-stderr-then-exit "GlusterFS initialization failed on line $LINENO in script $script on node $node_number." 1
+#$bpsh_bin $node_number /sbin/mount.glusterfs storage0-dev.cssd.pitt.edu:/vol_home -o backupvolfile-server=storage1-dev.cssd.pitt.edu /gluster/home || _print-stderr-then-exit "GlusterFS initialization failed on line $LINENO in script $script on node $node_number." 1
 
 rm -f /tmp/.glusterfsdirs.$node_number
 rm -f /tmp/.glusterfsfiles.$node_number

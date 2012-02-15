@@ -14,13 +14,15 @@
 
 ##### Revision history
 #
+# 1.9.4 - 2012-02-05 - Switched datastore option to one that uses rsync's --delete and another that does not. - Jeff White
+# 1.9.3 - 2012-01-16 - Really removed Viridian and Urobilin as LinuxOS clients, added Byzantium as a LinuxOS client. - Jeff White
 # 1.9.2 - 2012-01-14 - Added Skobeloff and Vermilion as a LinuxOS clients and Skobeloff as a MySQL client, removed Viridian as a LinuxOS and MySQL client, removed an old config directive for the LinuxOS section. - Jeff White
 # 1.9.1 - 2011-12-24 - Removed permfix script, removed some hard coded paths to binaries, re-wrote apache httpd section, fixed some documentation. - Jeff White
 # 1.9 - 2011-12-23 - Added Android option. - Jeff White
 # 1.8.4 - 2011-12-13 - Excluded /bricks from Linux OS backups. - Jeff White
 # 1.8.3 - 2011-12-12 - Minor fixes with logging. - Jeff White
 # 1.8.2 - 2011-12-11 - Changed the -d option to transfer via rsync's SSH. - Jeff White
-# 1.8.1 - 2011-12-11 - Re-wrote some of the VMware Workstation section, it was putting backups in the wrong place. - Jeff White
+# 1.8.1 - 2011-12-11 - Re-wrote some of the VMware Workstation section. - Jeff White
 #
 #####
 
@@ -174,7 +176,7 @@ EOF
 webossrc=( "Tangelo" ) #Add Palm WebOS backup sources here, double quoted, space delimited.
 
 #Linux OS configuration
-linbkupsrc=( "Indigo" "Cyan" "Teal" "Viridian" "Urobilin" "Skobeloff" "Vermilion" ) #Add Linux backup sources here, double quoted, space delimited.
+linbkupsrc=( "Indigo" "Cyan" "Teal" "Skobeloff" "Vermilion" ) #Add Linux backup sources here, double quoted, space delimited.
 cat << EOF > /tmp/exclude_linuxos
 /proc
 /sys
@@ -229,9 +231,9 @@ bkupsrv=$(echo $rsyncbkup | $cutbin --delimiter="@" -f2 | $cutbin --delimiter=":
 startdate=$($date) #Usedn for logging
 starttime=$($time) #Used for logging
 btime=$($datebin -u +%s) #Used for time calculation
-OPTSTRING=":cwanvmldghopPV"
+OPTSTRING=":cwanvmldghopPVD"
 virtualboxopt=0;laptoplinopt=0;laptopwinopt=0;wosopt=0;apachehttpdopt=0;getmailopt=0;emailnotifyopt=0;vmwareopt=0;mysqlopt=0;linosopt=0 #Unset variables are icky
-remotenason=0;fatalerrnum=0;errnum=0;logfail=0;bytessentrcvdtotal=0;scriptcanceled=0;lockfail=0;dataopt=0;verbosity=0;androidopt=0 #Unset variables are icky
+remotenason=0;fatalerrnum=0;errnum=0;logfail=0;bytessentrcvdtotal=0;scriptcanceled=0;lockfail=0;dataopt=0;verbosity=0;androidopt=0;datadeleteopt=0 #Unset variables are icky
 PATH=/bin:/usr/bin:/sbin:/usr/sbin/:/usr/local/bin:/usr/local/sbin #Start with a known $PATH
 umask 007
 
@@ -292,6 +294,8 @@ function _makeoutput {
   [ "$mysqlopt" = 1 ] && echo "MySQL option enabled for: $mysqlsrv"
   [ "$emailnotifyopt" = 1 ] && echo "E-mail notification enabled for: $email."
   [ "$getmailopt" = 1 ] && echo "Getmail option enabled for ${gmconffile[*]}"
+  [ "$datadeleteopt" = 1 ] && echo "Datastore options (with delete) enabled."
+  [ "$dataopt" = 1 ] && echo "Datastore options (without delete) enabled."
   echo "Start: $startdate - $starttime"
   echo "End: $enddate - $endtime"
   echo "Duration: $durdays days, $durhours hours, $durmin minutes, $remsec seconds"
@@ -393,6 +397,9 @@ while getopts "$OPTSTRING" OPT; do #The remotenason and DATOPT options are custo
     d)
       dataopt=1
       remotenason=1;;
+    D)
+      datadeleteopt=1
+      remotenason=1;;
     r)
       remotenason=1 ;;
     p)
@@ -403,7 +410,7 @@ while getopts "$OPTSTRING" OPT; do #The remotenason and DATOPT options are custo
       verbosity=1 ;;
     h)
       $catbin << EOF
-Usage: $script {-c -w -a -v -m -l -d -p -P -n -V -h}
+Usage: $script {-c -w -a -v -m -l -d -D -p -P -n -V -h}
 -c : Enabled the Android option
 -w : Enables the Palm WebOS option
 -g : Enables the getmail option
@@ -412,13 +419,14 @@ Usage: $script {-c -w -a -v -m -l -d -p -P -n -V -h}
 -o : Enables the Oracle VirtualBox option
 -m : Enables the MySQL option
 -l : Enables the Linux OS option
--d : Enables the datastore option
+-d : Enables the datastore option without rsync's --delete
+-D : Enabled the datastore option with rsync's --delete (overrides -d)
 -p : Enables the laptop Linux option
 -P : Enables the laptop Windows option
 -n : Enables E-mail notifications
 -V : Enables verbosity (stderr prints to the console, stdout still goes to the log)
 -h : Shows this help
-Note: Running this script with no options causes it to go through sanity checking then exit without backing anything up.
+Note: Running this script with no options (or -V by itself) causes it to go through sanity checking then exit without backing anything up.
 EOF
       exit 0 ;;
     \?)
@@ -861,7 +869,7 @@ if [ "$virtualboxopt" = 1 ];then #This has not yet been fully integrated with th
   fi
 fi
 
-if [ "$dataopt" = 1 ];then #Datastore section
+if [ "$dataopt" = 1 -o "$datadeleteopt" = 1 ];then #Datastore section
   echo "$($time) - Backing up Data on Cyan" | $teebin -a $log
   echo "$($time) - Checking and adding SSH keys." 1>>$log
   if ! $grepbin -i "teal" /home/$sshuser/.ssh/known_hosts > /dev/null; then
@@ -870,7 +878,11 @@ if [ "$dataopt" = 1 ];then #Datastore section
   fi
   echo "$($time) - Starting remote commands." 1>>$log
   echo "$($time) - Starting rsync on main datastore." 1>>$log
-  $sudobin $rsyncbin -a --stats --exclude "VM" --delete-before -e "$sudobin -u $sshuser $sshbin -l $sshuser -p $sshport" --rsync-path="$sudobin $rsyncbin" /media/Data/ Teal:/media/Backup 1>>$log || _printerr "ERROR - $LINENO - Data backup failed!"
+  if [ "$datadeleteopt" = "1" ];then
+    $sudobin $rsyncbin -a --stats --exclude "VM" --delete-before -e "$sudobin -u $sshuser $sshbin -l $sshuser -p $sshport" --rsync-path="$sudobin $rsyncbin" /media/Data/ Teal:/media/Backup 1>>$log || _printerr "ERROR - $LINENO - Data backup failed!"
+  elif [ "$dataopt" = "1" ];then
+    $sudobin $rsyncbin -a --stats --exclude "VM" -e "$sudobin -u $sshuser $sshbin -l $sshuser -p $sshport" --rsync-path="$sudobin $rsyncbin" /media/Data/ Teal:/media/Backup 1>>$log || _printerr "ERROR - $LINENO - Data backup failed!"
+  fi
 fi
 
 echo "$($time) - Cleaning up." | $teebin -a $log

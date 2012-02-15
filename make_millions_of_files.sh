@@ -18,7 +18,7 @@ shopt -s -o nounset
 #
 #####
 
-function randpass() { #This function came from a password generator I found on http://legroom.net/.
+function randstring() { #This function came from a password generator I found on http://legroom.net/.
   # Generate a random password
   #  $1 = number of characters; defaults to 32
   #  $2 = include special characters; 1 = yes, 0 = no; defaults to 1
@@ -28,17 +28,24 @@ function randpass() { #This function came from a password generator I found on h
 }
 
 start_epoch=$(date +%s)
+#max_num_files="3500"
+#file_size="100000000" #bytes
+#output_dir="/local_data/3500_100MB_files"
 max_num_files="35000"
-file_size="5000000" #bytes
-output_dir="/local_data/35000__5MB_files"
+file_size="10000000" #bytes
+output_dir="/local_data/35000_10MB_files"
+#max_num_files="35000000"
+#file_size="10000" #bytes
+#output_dir="/local_data/35000000_10KB_files"
 
 count=0
-dyndir="$output_dir/$(randpass 50 0)"
-mkdir -p "$dyndir"
 while [ $count -lt $max_num_files ];do
   echo "Working on $count"
-  if (( !($count % 1000) )) ;then #Here I create a new directory every 1000 files.
-    dyndir="$output_dir/$(randpass 50 0)"
+  if [ "$count" = "0" ];then
+    dyndir="$output_dir/$(randstring 50 0)"
+    mkdir -p "$dyndir"
+  elif (( !($count % 1000) )) ;then #Here I create a new directory every 1000 files.
+    dyndir="$output_dir/$(randstring 50 0)"
     mkdir -p "$dyndir"
   fi
   dd count=1 bs=$file_size if=/dev/urandom of=$dyndir/foo.$count 2>/dev/null

@@ -14,6 +14,7 @@
 
 ##### Revision history
 #
+# 0.7 - 2012-01-20 - Switched the VirtualBox piece to backup to a different box. - Jeff White
 # 0.6 - 2012-01-12 - Added VirtualBox support for a single VM. - Jeff White
 # 0.5 - 2011-12-21 - Re-write of the entire script. - Jeff White
 #
@@ -75,13 +76,6 @@ else
   _printerr "ERROR - $LINENO - Unexpected local hostname, exiting."
 fi
 
-$vboxmanagebin controlvm /home/jaw171/VM/jaw171-winbox2b/jaw171-winbox2b.vbox savestate
-sleep 5
-rsync -ahDHAX --stats --delete-after --progress -e "sudo -u jaw171 ssh -l white -p 4422" --rsync-path="sudo rsync" /home/jaw171/VM/jaw171-winbox2b gimpy530.dyndns.org:/media/Data/Backup/$linclient/VM/
-$vboxmanagebin startvm /home/jaw171/VM/jaw171-winbox2b/jaw171-winbox2b.vbox
-
-exit
-
 echo "$($time) - Backing up Linux OS on $linclient"
 
 echo "$($time) - Checking and creating required directories."
@@ -115,6 +109,13 @@ fi
 
 echo "$($time) - Starting rsync." 
 sudo rsync -ahDHAX --stats --delete-after --progress --exclude-from=/tmp/exclude_linuxos -e "sudo -u jaw171 ssh -l white -p 4422" --rsync-path="sudo rsync" / gimpy530.dyndns.org:/media/Data/Backup/$linclient/OS
+
+if [ "$linclient" = "Jaw171.noc.pitt.edu" ];then
+  $vboxmanagebin controlvm /home/jaw171/VM/jaw171-winbox2b/jaw171-winbox2b.vbox savestate
+  sleep 5
+  rsync -ahDHAX --stats --delete-after --progress -e "ssh" /home/jaw171/VM/jaw171-winbox2b jaw171b.noc.pitt.edu:/home/jaw171/VM/
+  $vboxmanagebin startvm /home/jaw171/VM/jaw171-winbox2b/jaw171-winbox2b.vbox
+fi
 
 echo "$($time) - Cleaning up."
 rm /tmp/exclude_linuxos

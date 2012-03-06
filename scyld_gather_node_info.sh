@@ -1,15 +1,25 @@
 #!/bin/bash
-#FIle Name: scyld_gather_node_info.sh
-#Description: Bash script to load and start glusterfs on compute nodes.
+#File Name: scyld_gather_node_info.sh
+#Description: Bash script to gather system information from compute nodes.
 #Written by: Jeff White (jaw171@pitt.edu) of the University of Pittsburgh
-#Version Number: 1.1
-#Revision Date: 10-25-2011
-#License: This script is released under version three (3) of the GNU General Public License (GPL) of the FSF, the text of which is available at http://www.fsf.org/licensing/licenses/gpl-3.0.html
-##This is a free script, you are free to change and redistribute it.  There is NO WARRANTY, to the extent permitted by law.
+
+##### License
+# This script is released under version three (3) of the GNU General Public License (GPL) of the 
+# Free Software Foundation (FSF), the text of which is available at http://www.fsf.org/licensing/licenses/gpl-3.0.html.
+# Use or modification of this script implies your acceptance of this license and its terms.
+# This is a free script, you are free to change and redistribute it with the terms of the GNU GPL.
+# There is NO WARRANTY, not even for FITNESS FOR A PARTICULAR USE to the extent permitted by U.S. law.
+#####
+
+##### Revision history
+#
+# 1.2 - 2012-03-06 - Minor cleanup. - Jeff White
+# 1.1 - 2011-10-25 - Untracked changes. - Jeff White
+#
+#####
 
 script="${0##*/}"
 bpsh_bin="/usr/bin/bpsh"
-bpcp_bin="/usr/bin/bpcp"
 
 function _print-stderr-then-exit { # Usage: _print-stderr-then-exit "Some error text" exitnumber
 echo "$1" 1>&2

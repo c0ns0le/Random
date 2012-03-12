@@ -16,6 +16,7 @@ shopt -s -o nounset
 
 ##### Revision history
 #
+# 0.2 - 2012-03-12 - Fixed the error checking with pipestatus on the rotations. - Jeff White
 # 0.1 - 2012-03-02 - Initial version. - Jeff White
 #
 #####
@@ -84,7 +85,7 @@ echo 'show databases\g' | mysql --user="$mysqluser" --password="$mysqlpass" | se
     if [ $(date +%a) = "Sat" ];then
       cp $bkupdir/Daily/$eachdbname-on-$dumpday-at-$dumptime.sql.gz $bkupdir/Weekly/$eachdbname-on-$dumpday-at-$dumptime.sql.gz || _printerr_netcoolticket "$script: ERROR - $LINENO - Unable to copy new weekly MySQL backup for $mysqlsrv."
       ls -1 -t $bkupdir/Weekly/$eachdbname* | awk '{ if (NR > 5) {print}}' | xargs rm -f
-      if [ "${PIPESTATUS[*]}" = "0 0 0" ];then
+      if [ "${PIPESTATUS[*]}" != "0 0 0" ];then
 	_printerr_netcoolticket "$script: ERROR - $LINENO - Unable to remove old weekly MySQL backup for $mysqlsrv."
       fi
     fi
@@ -93,7 +94,7 @@ echo 'show databases\g' | mysql --user="$mysqluser" --password="$mysqlpass" | se
     if [ $(date +%d) = "01" ];then
       cp $bkupdir/Daily/$eachdbname-on-$dumpday-at-$dumptime.sql.gz $bkupdir/Monthly/$eachdbname-on-$dumpday-at-$dumptime.sql.gz || _printerr_netcoolticket "$script: ERROR - $LINENO - Unable to copy new monthly MySQL backup for $mysqlsrv."
       ls -1 -t $bkupdir/Monthly/$eachdbname* | awk '{ if (NR > 13) {print}}' | xargs rm -f
-      if [ "${PIPESTATUS[*]}" = "0 0 0" ];then
+      if [ "${PIPESTATUS[*]}" != "0 0 0" ];then
 	_printerr_netcoolticket "$script: ERROR - $LINENO - Unable to remove old monthly MySQL backup for $mysqlsrv."
       fi
     fi
@@ -102,7 +103,7 @@ echo 'show databases\g' | mysql --user="$mysqluser" --password="$mysqlpass" | se
     if [ $(date +%j) = "001" ];then
       cp $bkupdir/Daily/$eachdbname-on-$dumpday-at-$dumptime.sql.gz $bkupdir/Yearly/$eachdbname-on-$dumpday-at-$dumptime.sql.gz || _printerr_netcoolticket "$script: ERROR - $LINENO - Unable to copy new yearly MySQL backup for $mysqlsrv."
       ls -1 -t $bkupdir/Yearly/$eachdbname* | awk '{ if (NR > 20) {print}}' | xargs rm -f
-      if [ "${PIPESTATUS[*]}" = "0 0 0" ];then
+      if [ "${PIPESTATUS[*]}" != "0 0 0" ];then
 	_printerr_netcoolticket "$script: ERROR - $LINENO - Unable to remove old yearly MySQL backup for $mysqlsrv."
       fi
     fi

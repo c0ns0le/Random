@@ -12,6 +12,7 @@
 
 ##### Revision history
 #
+# 0.5 - 2012-03-11 - Removed DCplusplus directory. - Jeff White
 # 0.4 - 2012-02-12 - Removed Torrent_rtorrent directory. - Jeff White
 # 0.3 - 2011-12-13 - Added '/media/VM' section. - Jeff White
 #
@@ -19,7 +20,7 @@
 
 publicdirs=( "TV" "Frets on Fire" "Movie" "Music" "Video Game Emulators" "Ebooks" "Education and Certifications" "Video" "Scripts" )
 
-privatedirs=( "Apps" "DCplusplus" "Operating Systems" "Pictures" "Stuffs" "Temp" "VHS" "Torrent_Deluge" )
+privatedirs=( "Apps" "Operating Systems" "Pictures" "Stuffs" "Temp" "VHS" "Torrent_Deluge" )
 
 if [ "$HOSTNAME" = "cyan" ];then
   prefixdir="/media/Data"

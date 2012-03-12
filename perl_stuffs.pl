@@ -126,16 +126,6 @@ use strict; #Enforce 'good' programming rules
 #Split a line into separate variables
 # ($username_and_service,$junk,$junk,$junk,$junk,$ip_in_hex,$junk,$last_operation_date) = split(/ /, $eachline, 8);
 
-#Call an external command and loop through each line of its output
-# open (POLICYDETAILS, "/usr/openv/netbackup/bin/admincmd/bppllist $each_policy_name -l |") || die "Failed to run bppllist for policy name $each_policy_name: $!";
-# while (<POLICYDETAILS>) {
-#  if ("$_" =~ m/^INCLUDE/ ) {
-#    my @include_dir = split(/ /, $_, 2);
-#    $dirs_included_in_a_policy = "$dirs_included_in_a_policy" . "$include_dir[1]";
-#  }
-# }
-# close POLICYDETAILS;
-
 #Redirect STDERR to a file
 # if (! open STDERR, ">>/tmp/somelog.err") {
 #  die "Unable to open error log: $!";
@@ -329,7 +319,7 @@ use strict; #Enforce 'good' programming rules
 # }
 
 #Get the system time
-# my @time = localtime; #$sec, $min, $hour, $day, $mon, $year, $wday, #yday, $isdst
+ my @time = localtime; #$sec, $min, $hour, $day, $mon, $year, $wday, $yday, $isdst
 # my $time = localtime; # Scalar context
 # print "The scalar time is $time\n"; #The time is Thu Mar  1 21:33:52 2012
 # print "The list time is @time\n"; #The time is 44 34 21 1 2 112 4 60 0
@@ -395,6 +385,121 @@ use strict; #Enforce 'good' programming rules
 #   default { say "No foo here." }
 # }
 
-#Run an external command
-system "date" || warn "Warning: Could not get current date from the system.\n"; #Inherits STDOUT, STDIn, and STDERR from the Perl script
+#Run an external command using system (does not hold output)
+# system("date") == 0 || warn "Warning: Could not get current date from the system.\n"; #Inherits STDOUT, STDIN, and STDERR from the Perl script
 # system "date", "+%F" ; #Multi-paramter calls like this never use a subshell
+
+#Run an external command using backticks (holds output)
+# my $output_text = `date +%F`; #Holds the output as one string with newlines if the output is multi-line
+# print "Today is $output_text\n"; #We didn't chomp, don't need a newline
+# my @output_lines = `route -n`; #Each line of output is a seperate element
+#...or
+# foreach (`route -n`) {
+#   print "I saw: $_";
+# }
+
+#Run an external command using a filehandle (hold output)
+# open (POLICYDETAILS, "/usr/openv/netbackup/bin/admincmd/bppllist $each_policy_name -l |") || die "Unable to pipe data from bppllist: $!";
+# while (<POLICYDETAILS>) {
+#  if ("$_" =~ m/^INCLUDE/ ) {
+#    my @include_dir = split(/ /, $_, 2);
+#    $dirs_included_in_a_policy = "$dirs_included_in_a_policy" . "$include_dir[1]";
+#  }
+# }
+# close POLICYDETAILS;
+
+#Run an external command using exec (won't return to the perl script except for a final 'die')
+# exec "date" || die "Failed to run date\n"; #The die is only if the system can't run the command, not if the command returns non-zero.
+
+#Pipe data into an external command
+# open (KITTY, "| cat >> /tmp/kitten.txt");
+# print KITTY "meow\n";
+# close KITTY;
+# if ($?) { warn "cat command failed.\n" };
+
+#Grab a signal
+# sub grab_int_signal {
+#   die "Ah, you killed me!\n"
+# }
+# $SIG{'INT'} = 'grab_int_signal';
+# print "Stab me in the face!\n";
+# sleep;
+
+#Stop a fatal error from being fatal with eval
+# eval {
+#   my $number = 7/0; #Divide by zero
+# }; #eval needs to end with a semicolon
+# if ($@) {
+#   warn "Something bad happened: $@"; #No need for a newline
+# }
+# or...
+# my $number = eval { 7/0 }; #The variable is undef if it fails
+
+#Using grep
+# open CPUINFOFILE, "/proc/cpuinfo";
+# my @lines = grep /^processor/, <CPUINFOFILE>;
+# foreach (@lines) { chomp $_; print "Twas '$_' I saw!\n"};
+# close CPUINFOFILE;
+
+#Pulling out pieces of an array with slices
+# my $data = "null:eins:zwei:drei:vier";
+# my ($one, $four) = (split /:/,$data)[1,4];
+# print "One is '$one' and four is '$four'\n";
+
+#Get the current working directory
+# use Cwd;
+# my $dir = cwd;
+
+#Exit on any failure
+# use Fatal qw/chdir open/; #What functions to work with
+# chdir '/tmps'; #No need for 'or die'
+# print "Foo\n"; #Never printed
+
+#Get the base and dir names
+# use File::Basename;
+# for (@ARGV){
+#   my $dir = dirname $_;
+#   my $base = basename $_;
+#   print "The file '$base' is in '$dir'\n";
+# }
+
+#Send an email
+# use Net::SMTP;
+# my $from = 'jwhite530@gmail.com';
+# my $site = 'jealwh.me';
+# my $smtp_host = '127.0.0.1';
+# my $to = 'jwhite530@gmail.com';
+# print "Sending mail from '$from' to '$to' through '$smtp_host' as '$site'.\n";
+# my $smtp = Net::SMTP->new($smtp_host, Hello => $site);
+# $smtp->mail($from);
+# $smtp->to($to);
+# $smtp->data( );
+# $smtp->datasend("To: $to\n");
+# $smtp->datasend("Subject: Testing\n");
+# $smtp->datasend("Foo.\n");
+# $smtp->dataend( );
+# $smtp->quit;
+
+#Get the system hostname
+# use Sys::Hostname;
+# my $name = hostname;
+# print "I name is $name\n";
+
+#Convert a time to epoch
+# use Time::Local;
+# my $epoch = timelocal($sec, $min, $hr, $day, $mon, $year);
+# my $epoch = timelocal(27, 40, 21, 10, 2, 112); #First 6 of what localtime gives in a list context
+# my $epoch = timelocal(@time); #First 6 of what localtime gives in a list context
+# print "$epoch\n";
+
+#Replace characters
+# my $string = "foo";
+# $string =~ tr/o/a/;
+# print "$string\n"; #faa
+
+#Heredoc
+my $text = <<END; #Semicolon goes here
+This is an example
+of multi-line text.
+END
+print "$text"; #No need for a newline

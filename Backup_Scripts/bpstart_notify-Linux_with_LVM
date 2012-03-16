@@ -1,0 +1,192 @@
+#!/bin/ksh
+#
+# This script executes as a standard policy-specific bpstart_notify script in order
+# to mount IBM SVC FlashCopy snapshot filesystems prior to backup execution.
+#
+# 15-Mar-2009 bhc Original
+#
+# 28-Apr-2009 bmo2 Modified for use with Courseweb.
+#
+# 02-Feb-2010 bhc Add /global/bbcontent2 filesystem
+#
+# 15-Apr-2010 bmo2 Add /global/cssd/db02 filesystem
+#
+# 28-Aug-2011 bmo2 Add /global/bbcontent3 filesystem
+#
+# 05-Mar-2012 jaw171 Convert to RHEL, add LVM, modify for use with Netflow job
+#
+# Parameters:
+#
+# <clientname> <policyname> <schedname> <schedtype>
+#
+
+exec >/dev/null 2>&1                    # Netbackup scripts must not write to stdout/stderr
+
+set -o nounset                          # Disallow references to undefined variables
+
+#
+# Explicit paths to invoked utilities
+#
+
+readonly GREP=/bin/grep
+readonly SSH=/usr/bin/ssh
+readonly CAT=/bin/cat
+readonly DATE=/bin/date
+readonly LOGGER=/usr/bin/logger
+readonly MAILX=/bin/mailx
+readonly MOUNT=/bin/mount
+readonly SED=/bin/sed
+readonly UMOUNT=/bin/umount
+readonly PVSCAN=/sbin/pvscan
+readonly VGSCAN=/sbin/vgscan
+readonly LVSCAN=/sbin/lvscan
+readonly LVCHANGE=/sbin/lvchange
+
+#
+# E-mail & pager recipients
+#
+
+readonly MAILTO="backup-team@list.pitt.edu"
+
+#
+# Various other definitions
+#
+
+readonly SVC="svc-clus-1a.cssd.pitt.edu."
+readonly SNAPFCNAMES="flowdata-p1-map flowdata-p2-map"
+readonly NCALERT="NOC-NETCOOL-TICKET"
+readonly LOGFILE=/var/log/san-backup-netflow.log
+readonly PGM=$(/bin/basename "${0}")
+
+#
+# Arrays of device names and corresponding mount points
+#
+
+set -A Device /dev/vg_flowtraq/lv_floqtraq0
+set -A MP flowtraq0
+
+#
+# Function to make a log entry.
+#
+# Parameters: TextLine
+# 
+Log()
+{
+   Date=$(${DATE})
+   echo "${Date} ${PGM}: ${1}" >> ${LOGFILE}
+} 
+
+#
+# Function to handle fatal errors
+#
+# Parameters: ErrorText
+#
+#
+FatalError()
+{
+   Log "Fatal error : ${1}"
+   $LOGGER -i -t "${NCALERT}" -p user.error "${1}"
+   $MAILX -s "${1}" "${MAILTO}" < /dev/null
+}
+
+Log "Invoked with $1 $2 $3 $4"
+
+#
+# Start the flashcopy mappings
+#
+
+for Mapping in $SNAPFCNAMES
+do
+  # Note that in case of any FlashCopy errors, we don't abort but instead we
+  # exit this loop and try to restart everything
+
+  Log "Starting FlashCopy mapping ${Mapping}"
+
+  Result=$( $SSH -i /.ssh/snapshot_id_rsa -l admin $SVC "svctask startfcmap -prep $Mapping" )
+  if [[ $? -ne 0 ]]; then
+    FatalError "Error $? starting FlashCopy mapping $Mapping for policy ${2}"
+    exit 1
+    break
+  fi
+
+  # Verify that the mapping is in the expected state
+ 
+  Result=$( $SSH -i /.ssh/snapshot_id_rsa -l admin $SVC "svcinfo lsfcmap $Mapping" | $GREP "^status copying$" )
+  if [[ $? -ne 0 ]]; then
+    FatalError "Error $? obtaining state of mapping $Mapping for policy ${2}"
+    exit 1
+    break
+  fi
+
+  if [[ "$Result" != "status copying" ]]; then
+    FatalError "FlashCopy mapping $Mapping not in copying state for policy ${2}"
+    exit 1
+    break
+  fi
+done
+
+#
+# Scan for the new LVM physical volumes, assemble the VG, make the LV active, then check that the LV exists
+#
+
+$PVSCAN 1>/dev/null 2>> $LOGFILE
+if [[ $? != 0 ]];then
+  FatalError "Failed to scan for LVM physical volumes for policy ${2}"
+  exit 1
+fi
+sleep 2
+
+$VGSCAN 1>/dev/null 2>> $LOGFILE
+if [[ $? != 0 ]];then
+  FatalError "Failed to scan for LVM volume groups for policy ${2}"
+  exit 1
+fi
+sleep 2
+
+$LVSCAN 1>/dev/null 2>> $LOGFILE
+if [[ $? != 0 ]];then
+  FatalError "Failed to scan for LVM logical volumes for policy ${2}"
+  exit 1
+fi
+sleep 2
+
+#
+# Process each filesystem
+#
+
+I=0
+Count=${#Device[*]}
+
+while [[ $I -lt $Count ]]
+do
+
+  # Mark the LV as active
+  $LVCHANGE --available y "${Device[${I}]}"
+  if [[ $? != 0 ]];then
+    FatalError "Failed to mark LV ${Device[${I}]} as active in policy ${2}"
+    exit 1
+  fi
+
+  # Check that the LV device exists
+  if [[ ! -e ${Device[${I}]} ]];then
+    FatalError "Snap device ${Device[${I}]} is missing for policy ${2}"
+    exit 1
+  fi
+
+  # Mount device
+
+  Log "Mounting /san/backup/flowtraq/${Device[${I}]} on ${MP[${I}]}"
+
+  $MOUNT -o ro ${Device[${I}]} /san/backup/flow-prod-01/${MP[${I}]}
+  if [[ $? -ne 0 ]]; then
+   FatalError "Unable to mount snap device ${Device[${I}]} for policy ${2}"
+   exit 1
+  fi
+
+  I=$(( I + 1 ))
+
+done
+
+Log "Returning success status to NetBackup"
+
+exit 0

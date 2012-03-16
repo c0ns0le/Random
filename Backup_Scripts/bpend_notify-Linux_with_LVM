@@ -1,0 +1,145 @@
+#!/bin/ksh
+#
+# This script executes as a standard policy-specific bpend_notify script in order
+# to unmount the temporary IBM FlashCopy filesystems and stop the mappings.
+#
+# 15-Mar-2009 bhc Original
+#
+# 28-Apr-2009 bmo2 Modified for use with Courseweb.
+#
+# 02-Feb-2010 bhc Add /global/bbcontent2 filesystem
+#
+# 15-Apr-2010 bmo2 Add /global/cssd/db02 filesystem
+#
+# 28-Aug-2011 bmo2 Add /global/bbcontent3 filesystem
+#
+# 05-Mar-2012 jaw171 Convert to RHEL, add LVM, modify for use with Netflow job
+#
+# Parameters:
+#
+# <clientname> <policyname> <schedname> <schedtype> <exitstatus>
+#
+
+exec >/dev/null 2>&1                    # Netbackup scripts must not write to stdout/stderr
+
+set -o nounset                          # Disallow references to undefined variables
+
+#
+# Explicit paths to invoked utilities
+#
+
+readonly GREP=/bin/grep
+readonly DATE=/bin/date
+readonly LOGGER=/usr/bin/logger
+readonly MAILX=/bin/mailx
+readonly SSH=/usr/bin/ssh
+readonly UMOUNT=/bin/umount
+readonly PVSCAN=/sbin/pvscan
+readonly VGSCAN=/sbin/vgscan
+readonly LVSCAN=/sbin/lvscan
+readonly LVCHANGE=/sbin/lvchange
+readonly VGCHANGE=/sbin/vgchange
+
+#
+# E-mail & pager recipients
+#
+
+readonly MAILTO="backup-team@list.pitt.edu"
+
+#
+# Various other definitions
+#
+
+readonly NCALERT="NOC-NETCOOL-TICKET"
+readonly LOGFILE=/var/log/san-backup-netflow.log
+readonly PGM=$(/bin/basename "${0}")
+readonly SVC="svc-clus-1a.cssd.pitt.edu."
+
+#
+# Lists of FlashCopy mapping names and mount points
+#
+
+readonly SNAPFCNAMES="flowdata-p1-map flowdata-p2-map"
+readonly MP="flowtraq0"
+
+#
+# Function to make a log entry.
+#
+# Parameters: TextLine
+# 
+Log()
+{
+   Date=$(${DATE})
+   echo "${Date} ${PGM}: ${1}" >> ${LOGFILE}
+} 
+
+#
+# Function to handle significant errors
+#
+# Parameters: ErrorText
+#
+#
+SeriousError()
+{
+   Log "Unexpected error : ${1}"
+   $LOGGER -i -t "${NCALERT}" -p user.error "${1}"
+   $MAILX -s "${1}" "${MAILTO}" < /dev/null
+}
+
+# Log invocation parameters and check backup status ($5)
+
+Log "Invoked with $1 $2 $3 $4 $5"
+
+if [[ $5 -ne 0 ]]; then
+  SeriousError "NetBackup completion status is $5 - check backup job status"
+  exit 1 # Bail out if the job didn't complete successfully.
+fi
+
+#
+# Process each filesystem
+#
+
+for FS in $MP
+do
+  # Dismount filesystem
+
+  Log "Dismounting /san/backup/flow-prod-01/${FS}"
+
+  $UMOUNT /san/backup/flow-prod-01/${FS}
+  if [[ $? -ne 0 ]]; then
+    SeriousError "Unable to dismount /san/backup/flow-prod-01/${FS} for policy ${2}"
+    exit 1
+  fi
+done
+
+# Mark the LV as inactive
+$LVCHANGE --available n "/dev/vg_flowtraq/lv_floqtraq0"
+if [[ $? != 0 ]];then
+  FatalError "Failed to mark LV /dev/vg_flowtraq/lv_floqtraq0 as inactive in policy ${2}"
+  exit 1
+fi
+sleep 2
+
+# Mark the VG as inactive
+$VGCHANGE --available n "vg_flowtraq"
+if [[ $? != 0 ]];then
+  FatalError "Failed to mark VG vg_flowtraq as inactive in policy ${2}"
+  exit 1
+fi
+sleep 2
+
+# Stop the mappings
+for Mapping in $SNAPFCNAMES
+do
+  Log "Stopping FlashCopy mapping $Mapping"
+  Result=$( $SSH -i /.ssh/snapshot_id_rsa -l admin $SVC "svctask stopfcmap $Mapping" )
+  Status=$?
+  if [[ $Status -ne 0 ]]; then
+    SeriousError "Error $Status stopping FlashCopy mapping $Mapping"
+    Log "Text returned from stopfcmap: $Result"
+  fi
+done
+
+Log "Returning success status to NetBackup"
+
+exit 0

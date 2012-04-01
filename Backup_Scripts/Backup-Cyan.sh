@@ -1,7 +1,7 @@
 #!/bin/bash
 #shopt -s -o noclobber
 #shopt -s -o nounset
-#Description: Bash script to back up Linux, MySQL, Apache httpd, VMware Workstation, Oracle VirtualBox, Palm WebOS, and Android.
+#Description: Bash script to back up Linux, MySQL, VMware Workstation, Oracle VirtualBox, Palm WebOS, and Android.
 #Written By: Jeff White (jwhite530@gmail.com)
 
 ##### License
@@ -13,7 +13,8 @@
 #####
 
 ##### Revision history
-#
+# 1.9.6 - 2012-03-31 - Removed the Apache httpd option, moved the Andrid option to -a. - Jeff White
+# 1.9.5 - 2012-03-05 - Added /tmp to the LinuxOS exclusion list, minor code cleanup. - Jeff White
 # 1.9.4 - 2012-02-05 - Switched datastore option to one that uses rsync's --delete and another that does not. - Jeff White
 # 1.9.3 - 2012-01-16 - Really removed Viridian and Urobilin as LinuxOS clients, added Byzantium as a LinuxOS client. - Jeff White
 # 1.9.2 - 2012-01-14 - Added Skobeloff and Vermilion as a LinuxOS clients and Skobeloff as a MySQL client, removed Viridian as a LinuxOS and MySQL client, removed an old config directive for the LinuxOS section. - Jeff White
@@ -23,7 +24,6 @@
 # 1.8.3 - 2011-12-12 - Minor fixes with logging. - Jeff White
 # 1.8.2 - 2011-12-11 - Changed the -d option to transfer via rsync's SSH. - Jeff White
 # 1.8.1 - 2011-12-11 - Re-wrote some of the VMware Workstation section. - Jeff White
-#
 #####
 
 #SECURITY NOTES AND CONSIDERATIONS: -- READ THIS --
@@ -43,7 +43,7 @@
 #+On the client it should look like:
 #+backupuser backupclientrname = NOPASSWD: /usr/bin/rsync
 
-#Android option: -c
+#Android option: -a
 #+Client dependencies: Bash (or a similar shell), rsync (client), OpenSSH (daemon)
 #+Server dependencies: Bash, OpenSSH (client)
 #+This option was designed for Cyanogenmod but you could do this with any ROM as long as you have root access.
@@ -81,10 +81,6 @@
 #delivered_to = false
 #received = false
 #delete = false
-
-#Apache option: -a
-#+Client dependencies: Bash, OpenSSH (daemon), rsync (client), sudo
-#+Server dependencies: Bash, rsync (daemon), OpenSSH (client)
 
 #MySQL option: -m
 #+Client dependencies: Bash, OpenSSH (daemon), mysqldump
@@ -183,6 +179,7 @@ cat << EOF > /tmp/exclude_linuxos
 /selinux
 /mnt
 /afs
+/tmp
 /dev/shm
 /media
 .gvfs
@@ -216,11 +213,6 @@ mysqlsrv="Skobeloff" #The hostname of the MySQL server.
 mysqluser=$($awkbin -F'=' '$1 ~ /user/ { print $2 }' /etc/mysql/mysql.cred)
 mysqlpass=$($awkbin -F'=' '$1 ~ /pass/ { print $2 }' /etc/mysql/mysql.cred)
 
-#Apache2 configuration
-apachesrv="Viridian" #The hostname of the Apache2 server.
-apacheserverroot="/etc/apache2" #Where the config files are held.
-apachedocroot="/www" #Where the Website files are held. Delimted by a space if using multiple directories.
-
 #Custom settings for my network
 rsyncdata="white@192.168.10.150::Data"
 
@@ -231,7 +223,7 @@ bkupsrv=$(echo $rsyncbkup | $cutbin --delimiter="@" -f2 | $cutbin --delimiter=":
 startdate=$($date) #Usedn for logging
 starttime=$($time) #Used for logging
 btime=$($datebin -u +%s) #Used for time calculation
-OPTSTRING=":cwanvmldghopPVD"
+OPTSTRING=":wanvmldghopPVD"
 virtualboxopt=0;laptoplinopt=0;laptopwinopt=0;wosopt=0;apachehttpdopt=0;getmailopt=0;emailnotifyopt=0;vmwareopt=0;mysqlopt=0;linosopt=0 #Unset variables are icky
 remotenason=0;fatalerrnum=0;errnum=0;logfail=0;bytessentrcvdtotal=0;scriptcanceled=0;lockfail=0;dataopt=0;verbosity=0;androidopt=0;datadeleteopt=0 #Unset variables are icky
 PATH=/bin:/usr/bin:/sbin:/usr/sbin/:/usr/local/bin:/usr/local/sbin #Start with a known $PATH
@@ -288,7 +280,6 @@ function _makeoutput {
   [ "$androidopt" = 1 ] && echo "Android options enabled for: ${androidbkupsrc[*]}."
   [ "$linosopt" = 1 ] && echo "Linux OS option enabled for: ${linbkupsrc[*]}."
   [ "$wosopt" = 1 ] && echo "WebOS option enabled for: ${webossrc[*]}."
-  [ "$apachehttpdopt" = 1 ] && echo "Apache2 option enabled for: $apachesrv."
   [ "$vmwareopt" = 1 ] && echo "VMware option enabled."
   [ "$virtualboxopt" = 1 ] && echo "Oracle VirtualBox enabled."
   [ "$mysqlopt" = 1 ] && echo "MySQL option enabled for: $mysqlsrv"
@@ -373,12 +364,10 @@ trap _handletrap 1 2 3 15 # Terminate script when receiving signal
 
 while getopts "$OPTSTRING" OPT; do #The remotenason and DATOPT options are custom for my network.
   case $OPT in
-    c)
+    a)
       androidopt=1 ;;
     w)
       wosopt=1 ;;
-    a)
-      apachehttpdopt=1 ;;
     g)
       getmailopt=1 ;;
     n)
@@ -775,24 +764,6 @@ if [ "$mysqlopt" = 1 ]; then #MySQL section
   fi
 fi
 
-if [ "$apachehttpdopt" = 1 ]; then #Apache httpd section
-  echo "$($time) - Backing up Apache httpd on $apachesrv" | $teebin -a $log
-  if $sshbin $sshuser@Teal -p $sshport : 1>>$log;then
-    echo "$($time) - Checking and creating required directories." 1>>$log
-    $mkdirbin -p $bkupdir/$apachesrv/Apache_httpd 1>>$log || _printerr "ERROR - $LINENO - Unable to create Apache httpd backup directory Apache_httpd for $apachesrv in $bkupdir." 1>>$log
-    echo "$($time) - Checking and adding SSH keys." 1>>$log
-    if ! $grepbin -i $apachesrv /home/$sshuser/.ssh/known_hosts > /dev/null; then
-      echo "Host key for $apachesrv:" 1>> /home/$sshuser/.ssh/known_hosts
-      $sshkeyscanbin -t rsa,dsa $apachesrv 1>> /home/$sshuser/.ssh/known_hosts || _printerr "ERROR - $LINENO - Unable to add host key for $apachesrv to known host key list."
-    fi
-    echo "$($time) - Starting rsync." 1>>$log
-    $sudobin $rsyncbin -aDHAXRvvv --stats --progress -e "$sudobin -u $sshuser $sshbin -l $sshuser -p $sshport" --rsync-path="$sudobin $rsyncbin" ${apachesrv}:$apacheserverroot ${bkupdir}/${apachesrv}/Apache_httpd$apacheserverroot
-#    $sudobin $rsyncbin -aDHAXR --stats --progress --exclude pub -e "$sudobin -u $sshuser $sshbin -l $sshuser -p $sshport" --rsync-path="$sudobin $rsyncbin" ${apachesrv}:$apachedocroot ${bkupdir}/${apachesrv}/Apache_httpd$apachedocroot
-  else
-    _printerr "ERROR - $LINENO - SSH to $apachesrv failed, skipping Apache httpd section." 1>>$log
-  fi
-fi
-
 if [ "$vmwareopt" = 1 ]; then #VMware Workstation section
   echo "$($time) - Backing up VMs on $vmwrkstnsvr" | $teebin -a $log
   echo "$($time) - Checking and adding SSH keys." 1>>$log
@@ -869,7 +840,7 @@ if [ "$virtualboxopt" = 1 ];then #This has not yet been fully integrated with th
   fi
 fi
 
-if [ "$dataopt" = 1 -o "$datadeleteopt" = 1 ];then #Datastore section
+if [ "$dataopt" = "1" -o "$datadeleteopt" = "1" ];then #Datastore section
   echo "$($time) - Backing up Data on Cyan" | $teebin -a $log
   echo "$($time) - Checking and adding SSH keys." 1>>$log
   if ! $grepbin -i "teal" /home/$sshuser/.ssh/known_hosts > /dev/null; then
@@ -879,9 +850,9 @@ if [ "$dataopt" = 1 -o "$datadeleteopt" = 1 ];then #Datastore section
   echo "$($time) - Starting remote commands." 1>>$log
   echo "$($time) - Starting rsync on main datastore." 1>>$log
   if [ "$datadeleteopt" = "1" ];then
-    $sudobin $rsyncbin -a --stats --exclude "VM" --delete-before -e "$sudobin -u $sshuser $sshbin -l $sshuser -p $sshport" --rsync-path="$sudobin $rsyncbin" /media/Data/ Teal:/media/Backup 1>>$log || _printerr "ERROR - $LINENO - Data backup failed!"
+    $sudobin $rsyncbin -a --stats --exclude "VM" --exclude "temp2.tc" --delete-before -e "$sudobin -u $sshuser $sshbin -l $sshuser -p $sshport" --rsync-path="$sudobin $rsyncbin" /media/Data/ Teal:/media/Backup 1>>$log || _printerr "ERROR - $LINENO - Data backup failed!"
   elif [ "$dataopt" = "1" ];then
-    $sudobin $rsyncbin -a --stats --exclude "VM" -e "$sudobin -u $sshuser $sshbin -l $sshuser -p $sshport" --rsync-path="$sudobin $rsyncbin" /media/Data/ Teal:/media/Backup 1>>$log || _printerr "ERROR - $LINENO - Data backup failed!"
+    $sudobin $rsyncbin -a --stats --exclude "VM" --exclude "temp2.tc" -e "$sudobin -u $sshuser $sshbin -l $sshuser -p $sshport" --rsync-path="$sudobin $rsyncbin" /media/Data/ Teal:/media/Backup 1>>$log || _printerr "ERROR - $LINENO - Data backup failed!"
   fi
 fi
 
@@ -890,6 +861,9 @@ echo "$($time) - Cleaning up." | $teebin -a $log
   $rmbin -f /tmp/exclude_android
 
 echo "$($time) - Removing old backup logs." | $teebin -a $log
-$lsbin -1 -t $($dirnamebin $log)/*-$script.log* | $awkbin --assign=numrunlogfiles=$numrunlogfiles '{ if (NR > numrunlogfiles) {print}}' | $xargsbin $rmbin -f ; [ $(echo "${PIPESTATUS[*]}" | $sedbin 's/ //g') -eq "000" ] 1>>$log || _printerr "ERROR - $LINENO - Unable to remove old script run logs."
+$lsbin -1 -t $($dirnamebin $log)/*-$script.log* | $awkbin --assign=numrunlogfiles=$numrunlogfiles '{ if (NR > numrunlogfiles) {print}}' | $xargsbin $rmbin -f
+if [ $(echo "${PIPESTATUS[*]}" | $sedbin 's/ //g') -eq "000" ] ;then
+  _printerr "ERROR - $LINENO - Unable to remove old script run logs."
+fi
 
 _printoutput

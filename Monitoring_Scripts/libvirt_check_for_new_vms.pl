@@ -11,6 +11,7 @@
 #####
 
 ##### Revision history
+# 0.2 - 2012-4-5 - Removed unnecessary negated test. - Jeff White
 # 0.1 - 2012-4-5 - Initial version. - Jeff White
 #####
 
@@ -51,11 +52,11 @@ for my $each_virsh_line (`$virsh_binary list --all`){
 
   my ($junk1,$junk2,$vm_name) = split(/\s+/, $each_virsh_line);
 
-  # If the VM name is not a known one...
-  if (!grep /$vm_name/, @known_vms) {
+  # If the VM name is a known one...
+  if (grep /$vm_name/, @known_vms) {
+    print "$vm_name is a known VM.\n";
+  } else {
     print "Found new VM: $vm_name\n";
     syslog("LOG_ERR", "$vm_name is new RODS KVM virtual server.  Please create a master ticket for new server. -- $0 -- NOC-NETCOOL-TICKET:");
-  } else {
-    print "$vm_name is a known VM.\n";
   }
 }

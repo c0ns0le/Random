@@ -11,6 +11,7 @@
 #####
 
 ##### Revision history
+# 0.3 - 2012-4-6 - Added a slice to get the VM name instead of using junk variables. - Jeff White
 # 0.2 - 2012-4-5 - Removed unnecessary negated test. - Jeff White
 # 0.1 - 2012-4-5 - Initial version. - Jeff White
 #####
@@ -50,7 +51,7 @@ for my $each_virsh_line (`$virsh_binary list --all`){
     next;
   }
 
-  my ($junk1,$junk2,$vm_name) = split(/\s+/, $each_virsh_line);
+  my $vm_name = (split /\s+/, $each_virsh_line)[2];
 
   # If the VM name is a known one...
   if (grep /$vm_name/, @known_vms) {

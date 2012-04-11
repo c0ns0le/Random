@@ -15,6 +15,8 @@
 #
 # 05-Mar-2012 jaw171 Convert to RHEL, add LVM, modify for use with Netflow job
 #
+# 04-Apr-2012 jaw171 Flush multipath maps after devices are removed.
+#
 # Parameters:
 #
 # <clientname> <policyname> <schedname> <schedtype> <exitstatus>
@@ -39,6 +41,7 @@ readonly VGSCAN=/sbin/vgscan
 readonly LVSCAN=/sbin/lvscan
 readonly LVCHANGE=/sbin/lvchange
 readonly VGCHANGE=/sbin/vgchange
+readonly MULTIPATH=/sbin/multipath
 
 #
 # E-mail & pager recipients
@@ -83,7 +86,7 @@ SeriousError()
 {
    Log "Unexpected error : ${1}"
    $LOGGER -i -t "${NCALERT}" -p user.error "${1}"
-   $MAILX -s "${1}" "${MAILTO}" < /dev/null
+#   $MAILX -s "${1}" "${MAILTO}" < /dev/null
 }
 
 # Log invocation parameters and check backup status ($5)
@@ -139,6 +142,14 @@ do
     Log "Text returned from stopfcmap: $Result"
   fi
 done
+
+# Flush the now unused multipath maps
+sleep 300
+$MULTIPATH -F
+Status=$?
+if [[ $Status -ne 0 ]]; then
+  SeriousError "Failed to flush multipath maps."
+fi
 
 Log "Returning success status to NetBackup"
 

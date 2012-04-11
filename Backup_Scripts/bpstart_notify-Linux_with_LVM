@@ -86,7 +86,7 @@ FatalError()
 {
    Log "Fatal error : ${1}"
    $LOGGER -i -t "${NCALERT}" -p user.error "${1}"
-   $MAILX -s "${1}" "${MAILTO}" < /dev/null
+#   $MAILX -s "${1}" "${MAILTO}" < /dev/null
 }
 
 Log "Invoked with $1 $2 $3 $4"

@@ -1,6 +1,8 @@
 #!/usr/bin/perl
-#Description: Perl script to check the health of compute nodes in a Beowulf HPC cluster
-#Written By: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
+# Description: Perl script to check the health of compute nodes in a Beowulf HPC cluster
+# Written By: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
+# Version: 0.2 (2012-4-13)
+# Last change: Got syslog() to behave and give the correct format
 
 ##### License
 # This script is released under version three (3) of the GNU General Public License (GPL) of the 
@@ -10,13 +12,9 @@
 # There is NO WARRANTY, not even for FITNESS FOR A PARTICULAR USE to the extent permitted by U.S. law.
 #####
 
-##### Revision history
-# 0.1 - 2012-3-12 - Initial version. - Jeff White
-#####
-
 use strict;
 use warnings;
-# use Sys::Syslog; #For syslog()
+use Sys::Syslog qw( :DEFAULT setlogsock); #For syslog()
 use Getopt::Long; #For GetOptions()
 use Net::SSH::Perl;
 
@@ -52,6 +50,10 @@ sub generate_random_string {
   return $random_string;
 }
 
+# Prepare for syslog()
+setlogsock("unix");
+openlog($0, "nonul,pid", "user") or die "Unable to open syslog connection\n";
+
 for my $bpstat_line (`$bpstat --long`) {
   chomp $bpstat_line;
 
@@ -70,8 +72,7 @@ for my $bpstat_line (`$bpstat --long`) {
   # Check if the node is up
   if ($node_status !~ m/^up$/) {
     print STDERR "Node $node_number is not up.  State: $node_status.\n";
-#    syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Node $node_number is not up.  State: $node_status.\n. -- $0.");
-    system("logger", "-t", "NOC-NETCOOL-TICKET", "-p", "err", "Node $node_number is not up.  State: $node_status");
+    syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Node $node_number is not up.  State: $node_status.\n. -- $0.");
     next
   }
   print "Node $node_number is up.\n";
@@ -100,8 +101,7 @@ for my $bpstat_line (`$bpstat --long`) {
       print "Mount is OK.\n";
     } else {
       print STDERR "Failed to create test file on node $node_number ($exit_status).\n";
-#      syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Unable to write to mount '$each_mount' on $node_number ($exit_status). -- $0.");
-      system("logger", "-t", "NOC-NETCOOL-TICKET", "-p", "err", "Unable to write to mount '$each_mount' on $node_number ($exit_status).");
+      syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Unable to write to mount '$each_mount' on $node_number ($exit_status). -- $0.");
       next;
     }
 
@@ -129,8 +129,7 @@ for my $bpstat_line (`$bpstat --long`) {
       print "IB is OK.\n";
     } else {
       print STDERR "Infiniband is not PORT_ACTIVE on node $node_number.\n";
-#      syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Infiniband state is not PORT_ACTIVE on node $node_number. -- $0.");
-      system("logger", "-t", "NOC-NETCOOL-TICKET", "-p", "err", "Infiniband state is not PORT_ACTIVE on node ${node_number}.");
+      syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Infiniband state is not PORT_ACTIVE on node $node_number.");
     }
 
   } else {
@@ -153,8 +152,7 @@ for my $bpstat_line (`$bpstat --long`) {
       print "Filesystem /scratch usage is OK (${local_scratch_used_space}% used).\n";
     } else {
       print STDERR "Filesystem /scratch is ${local_scratch_used_space}% full on node $node_number.\n";
-#      syslog("LOG_ERR", "Filesystem /scratch is ${local_scratch_used_space}% full on node $node_number. -- $0.");
-      system("logger", "-t", "NOC-NETCOOL-TICKET", "-p", "err", "Filesystem /scratch is ${local_scratch_used_space}% full on node $node_number.");
+      syslog("LOG_ERR", "Filesystem /scratch is ${local_scratch_used_space}% full on node $node_number. -- $0.");
     }
 
   } else {
@@ -164,3 +162,5 @@ for my $bpstat_line (`$bpstat --long`) {
   print "\n";
 
 }
+
+closelog;

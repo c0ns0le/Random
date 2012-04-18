@@ -13,6 +13,7 @@
 #####
 
 ##### Revision history
+# 1.9.7 - 2012-4-17 - Removed rsync's --delete from the Linux OS -l option, moved it to -L, removed the run log remover section. - Jeff White
 # 1.9.6 - 2012-03-31 - Removed the Apache httpd option, moved the Andrid option to -a. - Jeff White
 # 1.9.5 - 2012-03-05 - Added /tmp to the LinuxOS exclusion list, minor code cleanup. - Jeff White
 # 1.9.4 - 2012-02-05 - Switched datastore option to one that uses rsync's --delete and another that does not. - Jeff White
@@ -55,7 +56,7 @@
 #++You'll need to install most of this software yourself, WebOS does not come with it.  You should also use Wifi, not EVDO/3G.
 #+Server dependencies: Bash, rsync (daemon), OpenSSH (client and daemon)
 
-#Linux OS option: -l
+#Linux OS option: -l and -L
 #+Client dependencies: Bash, OpenSSH (daemon), rsync (client), sort, [apt-cache + dpkg || rpm || ipkg], sudo
 #+Server dependencies: Bash, OpenSSH (client)
 #+To use the package list on Debian-like systems use: dpkg --set-selections < /path/to/packages_list && apt-get -u dselect-upgrade
@@ -147,8 +148,6 @@ scpbin="scp"
 script=${0##*/}
 log=/var/log/backup/$($datebin +%Y-%m-%d)-$script.log
 rsyncbkup="backupuser@192.168.10.150::Backup"  #This is where data will be backed up to.
-rsyncopt="--stats --delete --exclude .gvfs --exclude .cache --exclude .thumbnails --exclude Cache --exclude cache --exclude tmp --exclude bricks"
-rsynccl="$rsyncbin -alpEA $rsyncopt"
 bkupdir="/media/Data/Backup" #Local path to the backup directory here.  This should match the directory that $rsyncbkup leads to.
 sshuser="backupuser"
 sshport="22"
@@ -223,11 +222,11 @@ bkupsrv=$(echo $rsyncbkup | $cutbin --delimiter="@" -f2 | $cutbin --delimiter=":
 startdate=$($date) #Usedn for logging
 starttime=$($time) #Used for logging
 btime=$($datebin -u +%s) #Used for time calculation
-OPTSTRING=":wanvmldghopPVD"
-virtualboxopt=0;laptoplinopt=0;laptopwinopt=0;wosopt=0;apachehttpdopt=0;getmailopt=0;emailnotifyopt=0;vmwareopt=0;mysqlopt=0;linosopt=0 #Unset variables are icky
+OPTSTRING=":wanvmldghopPVDL"
+virtualboxopt=0;laptoplinopt=0;laptopwinopt=0;wosopt=0;apachehttpdopt=0;getmailopt=0;emailnotifyopt=0;vmwareopt=0;mysqlopt=0;linosopt=0;linosdeleteopt=0 #Unset variables are icky
 remotenason=0;fatalerrnum=0;errnum=0;logfail=0;bytessentrcvdtotal=0;scriptcanceled=0;lockfail=0;dataopt=0;verbosity=0;androidopt=0;datadeleteopt=0 #Unset variables are icky
 PATH=/bin:/usr/bin:/sbin:/usr/sbin/:/usr/local/bin:/usr/local/sbin #Start with a known $PATH
-umask 007
+umask 027
 
 function _printerr {
 echo "$1" 1>&2
@@ -278,7 +277,8 @@ function _makeoutput {
     echo "Log: $log"
   fi
   [ "$androidopt" = 1 ] && echo "Android options enabled for: ${androidbkupsrc[*]}."
-  [ "$linosopt" = 1 ] && echo "Linux OS option enabled for: ${linbkupsrc[*]}."
+  [ "$linosdeleteopt" = 1 ] && echo "Linux OS option (with delete) enabled for: ${linbkupsrc[*]}."
+  [ "$linosopt" = 1 ] && echo "Linux OS option (without delete) enabled for: ${linbkupsrc[*]}."
   [ "$wosopt" = 1 ] && echo "WebOS option enabled for: ${webossrc[*]}."
   [ "$vmwareopt" = 1 ] && echo "VMware option enabled."
   [ "$virtualboxopt" = 1 ] && echo "Oracle VirtualBox enabled."
@@ -383,6 +383,8 @@ while getopts "$OPTSTRING" OPT; do #The remotenason and DATOPT options are custo
       mysqlopt=1 ;;
     l)
       linosopt=1 ;;
+    L)
+      linosdeleteopt=1 ;;
     d)
       dataopt=1
       remotenason=1;;
@@ -407,7 +409,8 @@ Usage: $script {-c -w -a -v -m -l -d -D -p -P -n -V -h}
 -v : Enables the VMware option
 -o : Enables the Oracle VirtualBox option
 -m : Enables the MySQL option
--l : Enables the Linux OS option
+-l : Enables the Linux OS option without rsync's --delete
+-L : Enables the Linux OS option with rsync's --delete (overrides -l)
 -d : Enables the datastore option without rsync's --delete
 -D : Enabled the datastore option with rsync's --delete (overrides -d)
 -p : Enables the laptop Linux option
@@ -642,7 +645,7 @@ if [ "$wosopt" = 1 ]; then #WARNING - THIS OPTION IS OLD AND UNMAINTAINED.
   done
 fi
 
-if [ "$linosopt" = 1 ]; then #Linux OS section
+if [ "$linosopt" = "1" -o "$linosdeleteopt" = "1" ]; then #Linux OS section
   for linclient in "${linbkupsrc[@]}";do
     echo "$($time) - Backing up Linux OS on $linclient" | $teebin -a $log
     echo "$($time) - Checking and creating required directories." 1>>$log
@@ -676,7 +679,11 @@ if [ "$linosopt" = 1 ]; then #Linux OS section
 	fi
       }" 1> "${bkupdir}/${linclient}/Packages/Temp/$($date)-Installed-Packages-${linclient}.log"
       echo "$($time) - Starting rsync." 1>>$log
-      $sudobin $rsyncbin -aDHAX --stats --delete --exclude-from=/tmp/exclude_linuxos -e "$sudobin -u $sshuser $sshbin -l $sshuser -p $sshport" --rsync-path="$sudobin $rsyncbin" ${linclient}:/ ${bkupdir}/${linclient}/OS 1>>$log || _printerr "ERROR - $LINENO - Linux OS backup on $linclient failed."
+      if [ "$linosdeleteopt" = 1 ];then
+	$sudobin $rsyncbin -aDHAX --stats --delete-before --exclude-from=/tmp/exclude_linuxos -e "$sudobin -u $sshuser $sshbin -l $sshuser -p $sshport" --rsync-path="$sudobin $rsyncbin" ${linclient}:/ ${bkupdir}/${linclient}/OS 1>>$log || _printerr "ERROR - $LINENO - Linux OS backup on $linclient failed."
+      elif [ "$linosopt" = 1 ];then
+	$sudobin $rsyncbin -aDHAX --stats --exclude-from=/tmp/exclude_linuxos -e "$sudobin -u $sshuser $sshbin -l $sshuser -p $sshport" --rsync-path="$sudobin $rsyncbin" ${linclient}:/ ${bkupdir}/${linclient}/OS 1>>$log || _printerr "ERROR - $LINENO - Linux OS backup on $linclient failed."
+      fi
       echo "$($time) - Checking and rotating package list." 1>>$log
       if [ -s $bkupdir/$linclient/Packages/Temp/$($date)-Installed-Packages-$linclient.log ];then #If the package dump exists and is non-zero in size, copy the daily and move on.
 	$mvbin -f "$bkupdir/$linclient/Packages/Temp/$($date)-Installed-Packages-$linclient.log" "$bkupdir/$linclient/Packages/Daily/$($date)-Installed-Packages-$linclient.log" 1>>$log || _printerr "ERROR - $LINENO - Unable to copy new daily package list dump for $linclient." 1>>$log
@@ -859,11 +866,5 @@ fi
 echo "$($time) - Cleaning up." | $teebin -a $log
   $rmbin -f /tmp/exclude_linuxos
   $rmbin -f /tmp/exclude_android
-
-echo "$($time) - Removing old backup logs." | $teebin -a $log
-$lsbin -1 -t $($dirnamebin $log)/*-$script.log* | $awkbin --assign=numrunlogfiles=$numrunlogfiles '{ if (NR > numrunlogfiles) {print}}' | $xargsbin $rmbin -f
-if [ $(echo "${PIPESTATUS[*]}" | $sedbin 's/ //g') -eq "000" ] ;then
-  _printerr "ERROR - $LINENO - Unable to remove old script run logs."
-fi
 
 _printoutput

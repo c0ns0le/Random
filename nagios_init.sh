@@ -24,6 +24,8 @@
 #  - Clean out redhat macros and other dependencies
 # 2003-01-11 Ethan Galstad <egalstad@nagios.org>
 #  - Updated su syntax (Gary Miller)
+# 2012-4-24 Jeff White <jaw171@pitt.edu>
+#  - Fixed the 'status' section to exit 0 when the lock file is down (for better LSB compliance).
 #
 # Description: Starts and stops the Nagios monitor
 #              used to provide network services status.
@@ -174,7 +176,13 @@ case "$1" in
                 ;;
 
         status)
-                pid_nagios
+		if test ! -f $NagiosRunFile; then
+		  echo "No lock file found in $NagiosRunFile"
+		  exit 0
+		fi
+
+		NagiosPID=`head -n 1 $NagiosRunFile`
+
                 printstatus_nagios nagios
                 ;;
 

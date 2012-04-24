@@ -25,7 +25,8 @@
 # 2003-01-11 Ethan Galstad <egalstad@nagios.org>
 #  - Updated su syntax (Gary Miller)
 # 2012-4-24 Jeff White <jaw171@pitt.edu>
-#  - Fixed the 'status' section to exit 0 when the lock file is down (for better LSB compliance).
+#  - Changed pid_nagios() to not exit but give a return value if the lock/pid file is not found 
+#  - and change calls to it to check that status (for better -but still wrong- LSB compliance).
 #
 # Description: Starts and stops the Nagios monitor
 #              used to provide network services status.
@@ -81,7 +82,7 @@ pid_nagios ()
 
         if test ! -f $NagiosRunFile; then
                 echo "No lock file found in $NagiosRunFile"
-                exit 1
+		return 1
         fi
 
         NagiosPID=`head -n 1 $NagiosRunFile`
@@ -148,7 +149,10 @@ case "$1" in
         stop)
                 echo -n "Stopping nagios: "
 
-                pid_nagios
+                if ! pid_nagios;then
+		  exit 0
+		fi
+		
                 killproc_nagios nagios
 
                 # now we have to wait for nagios to exit and remove its
@@ -176,13 +180,9 @@ case "$1" in
                 ;;
 
         status)
-		if test ! -f $NagiosRunFile; then
-		  echo "No lock file found in $NagiosRunFile"
-		  exit 0
+                if ! pid_nagios;then
+		  exit 3
 		fi
-
-		NagiosPID=`head -n 1 $NagiosRunFile`
-
                 printstatus_nagios nagios
                 ;;
 
@@ -218,7 +218,9 @@ case "$1" in
                         if test ! -f $NagiosRunFile; then
                                 $0 start
                         else
-                                pid_nagios
+                                if ! pid_nagios;then
+				  exit 1
+				fi
                                 if status_nagios > /dev/null; then
                                         printf "Reloading nagios configuration..."
                                         killproc_nagios nagios -HUP

@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 # Description: Perl script to check the health of compute nodes in a Beowulf HPC cluster
 # Written By: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 0.2 (2012-4-13)
-# Last change: Got syslog() to behave and give the correct format
+# Version: 1.0 (2012-4-25)
+# Last change: Switched to Net::OpenSSH
 
 ##### License
 # This script is released under version three (3) of the GNU General Public License (GPL) of the 
@@ -16,7 +16,7 @@ use strict;
 use warnings;
 use Sys::Syslog qw( :DEFAULT setlogsock); #For syslog()
 use Getopt::Long; #For GetOptions()
-use Net::SSH::Perl;
+use Net::OpenSSH;
 
 # Where are our binaries?
 my $bpstat = "/usr/bin/bpstat";
@@ -79,12 +79,17 @@ for my $bpstat_line (`$bpstat --long`) {
 
 
   # Make an SSH connection to the node
-  print "Making SSH connection.\n";
-  my $ssh = Net::SSH::Perl->new(
+  my $ssh = Net::OpenSSH->new(
     "n$node_number",
-    identity_files => [ "/root/.ssh/id_dsa" ],
-    debug => 0 );
-  $ssh->login("root");
+    key_path => "/root/.ssh/id_dsa",
+    timeout => 1,
+    kill_ssh_on_timeout => 1,
+#     default_ssh_options => [-o => "ConnectionAttempts=2"]
+  );
+  if ($ssh->error) {
+    warn "ERROR: Failed to establish SSH connection to node $node_number: " . $ssh->error;
+    next;
+  }
 
 
   # Check the node's mount points
@@ -94,25 +99,22 @@ for my $bpstat_line (`$bpstat --long`) {
     my $test_string = &generate_random_string(5);
 
     # Create a file in the mount point
-    my ($stdout, $stderr, $exit_status) = $ssh->cmd("echo \"$test_string\" > $each_mount/.$test_string.$node_number");
-
-    # Check the status of the file creation
-    if ($exit_status == 0) {
-      print "Mount is OK.\n";
-    } else {
-      print STDERR "Failed to create test file on node $node_number ($exit_status).\n";
-      syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Unable to write to mount '$each_mount' on $node_number ($exit_status). -- $0.");
+    if ($ssh->system("echo \"$test_string\" > $each_mount/.$test_string.$node_number")) {
+      print "Mount '$each_mount' is OK.\n";
+    }
+    else {
+      warn "PROBLEM: Failed to create test file in mount '$each_mount' on node $node_number: " . $ssh->error;
+      syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Unable to write to mount '$each_mount' on node $node_number. -- $0.");
       next;
     }
-
+    
     # Remove the file from the mount point
-    ($stdout, $stderr, $exit_status) = $ssh->cmd("rm -f $each_mount/.$test_string.$node_number");
-
-    # Check the status of the file deletion
-    if ($exit_status == 0) {
-#       print "Successfully removed test file.\n";
-    } else {
-      print STDERR "Failed to remove test file on $node_number ($exit_status).\n";
+    if ($ssh->system("rm -f $each_mount/.$test_string.$node_number")) {
+      print "Successfully removed test file.\n";
+    }
+    else {
+      warn "ERROR: Failed to remove test file in mount '$each_mount' on $node_number: " . $ssh->error;
+      next;
     }
 
   }
@@ -122,15 +124,17 @@ for my $bpstat_line (`$bpstat --long`) {
   if ($node_number =~ m/^[0-5]$/) {
 
     # Get the IB device info
-    my ($stdout, $stderr, $exit_status) = $ssh->cmd("ibv_devinfo");
+    my ($stdout, $stderr) = $ssh->capture2("ibv_devinfo");
 
     # Check the state
     if (($stdout) and ($stdout =~ m/state:\s+PORT_ACTIVE/)) {
       print "IB is OK.\n";
     } else {
-      print STDERR "Infiniband is not PORT_ACTIVE on node $node_number.\n";
+      warn "PROBLEM: Infiniband state is not PORT_ACTIVE on node $node_number.\n";
       syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Infiniband state is not PORT_ACTIVE on node $node_number.");
     }
+
+    # We should do more testing such as seeing if the node can ping over IB
 
   } else {
     print "Infiniband check disabled, skipping\n";
@@ -141,8 +145,9 @@ for my $bpstat_line (`$bpstat --long`) {
   if ($node_number =~ m/^[0-5]$/) {
 
     # Get the scratch space info
-    my ($stdout, $stderr, $exit_status) = $ssh->cmd("df -hP /scratch");
-    
+    my ($stdout, $stderr) = $ssh->capture2("df -hP /scratch");
+    $ssh->error and die "Failed to get /scratch info on node $node_number: " . $ssh->error;
+
     # Get the free space
     my $local_scratch_used_space = (split(/\s+/,$stdout))[11];
     $local_scratch_used_space =~ s/\%//;
@@ -151,7 +156,7 @@ for my $bpstat_line (`$bpstat --long`) {
     if ($local_scratch_used_space < 90) {
       print "Filesystem /scratch usage is OK (${local_scratch_used_space}% used).\n";
     } else {
-      print STDERR "Filesystem /scratch is ${local_scratch_used_space}% full on node $node_number.\n";
+      warn "PROBLEM: Filesystem /scratch is ${local_scratch_used_space}% full on node $node_number.\n";
       syslog("LOG_ERR", "Filesystem /scratch is ${local_scratch_used_space}% full on node $node_number. -- $0.");
     }
 

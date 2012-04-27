@@ -2,7 +2,8 @@
 # Name: pacemaker_check_failcounts.sh
 # Description: Bash script to check the failcounts of cluster resources with Pacemaker/Corosync.
 # Written by: Jeff White (jaw171@pitt.edu) of the University of Pittsburgh
-# Last change: Clean up header section
+# Last change: Add version number
+# Version: 1.0
  
 ##### License
 # This script is released under version three (3) of the GNU General Public License (GPL) of the 

@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 # Description: Perl script to check the health of compute nodes in a Beowulf HPC cluster
 # Written By: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 2 (2012-4-27)
-# Last change: Added some SSH options, changed the logic on skipping nodes, added color to some print()s
+# Version: 3 (2012-5-1)
+# Last change: Fixed the usage example, changed the threshold of the /scratch free space checker
 
 ##### License
 # This script is released under version three (3) of the GNU General Public License (GPL) of the 
@@ -31,8 +31,8 @@ GetOptions('h|help' => \my $helpopt,
           ) || die "Incorrect usage, use -h for help.\n";
 
 if ($helpopt) {
-  print "Usage: $0 -m /scratch /home\n";
-  print "-m | --mounts : List of mount points to check\n";
+  print "Usage: $0 -m /scratch -m /home\n";
+  print "-m | --mounts : Mount points to check\n";
   print "-h | --help : Show this help\n";
   exit;
 }
@@ -171,7 +171,7 @@ for my $bpstat_line (`$bpstat --long`) {
     $local_scratch_used_space =~ s/\%//;
 
     # Check the free space
-    if ($local_scratch_used_space < 90) {
+    if ($local_scratch_used_space < 95) {
       print "Filesystem /scratch usage is OK (${local_scratch_used_space}% used).\n";
     } else {
       warn BOLD RED "PROBLEM: Filesystem /scratch is ${local_scratch_used_space}% full on node $node_number.\n";

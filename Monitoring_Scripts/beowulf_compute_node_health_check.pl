@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 # Description: Perl script to check the health of compute nodes in a Beowulf HPC cluster
 # Written By: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 6 (2012-5-4)
-# Last change: Switched to bpsh instead of SSH, added timeout to system commands
+# Version: 6.1 (2012-5-4)
+# Last change: Removed Net::OpenSSH module
 
 ##### License
 # This script is released under version three (3) of the GNU General Public License (GPL) of the 
@@ -16,7 +16,6 @@ use strict;
 use warnings;
 use Sys::Syslog qw( :DEFAULT setlogsock);
 use Getopt::Long;
-use Net::OpenSSH;
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
 

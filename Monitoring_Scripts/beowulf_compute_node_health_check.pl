@@ -1,9 +1,8 @@
 #!/usr/bin/perl
 # Description: Perl script to check the health of compute nodes in a Beowulf HPC cluster
 # Written By: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 5 (2012-5-3)
-# Last change: Added -n option to check only the nodes we were told to check rather than checking all of them,
-# fixed a regex in the Infiniband section.
+# Version: 6 (2012-5-4)
+# Last change: Switched to bpsh instead of SSH, added timeout to system commands
 
 ##### License
 # This script is released under version three (3) of the GNU General Public License (GPL) of the 
@@ -23,6 +22,7 @@ $Term::ANSIColor::AUTORESET = 1;
 
 # Where are our binaries?
 my $bpstat = "/usr/bin/bpstat";
+my $bpsh = "/usr/bin/bpsh";
 
 # Defaults for some options
 my @mounts;
@@ -61,7 +61,7 @@ sub generate_random_string {
 
 # Prepare for syslog()
 setlogsock("unix");
-openlog($0, "nonul,pid", "user") or die "Unable to open syslog connection\n";
+openlog($0, "nonul,pid", "user") or warn "Unable to open syslog connection\n";
 
 for my $bpstat_line (`$bpstat --long $nodes`) {
   chomp $bpstat_line;
@@ -75,7 +75,7 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
 
   # Get the node number and status
   my ($node_number,$node_status) = (split(/\s+/,$bpstat_line))[1,3];
-  print "Working on node: $node_number\n";
+  print BOLD GREEN "Working on node: $node_number\n";
 
 
   # Check if the node is up
@@ -87,44 +87,77 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
   print "Node $node_number is up.\n";
 
 
-  # Make an SSH connection to the node
-  my $ssh = Net::OpenSSH->new(
-    "n$node_number",
-    key_path => "/root/.ssh/id_dsa",
-    timeout => 30,
-    kill_ssh_on_timeout => 1,
-    default_ssh_opts => [-o => "ConnectionAttempts=2", -o => "StrictHostKeyChecking no"]
-  );
-  if ($ssh->error) {
-#     syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Failed to establish SSH connection to node $node_number.\n. -- $0.")
-    warn BOLD RED "ERROR: Failed to establish SSH connection to node $node_number: " . $ssh->error;
-    next;
-  }
-
-
   # Check the node's mount points
   for my $each_mount (@mounts) {
 
     print "Checking mount: $each_mount\n";
     my $test_string = &generate_random_string(5);
 
-    # Create a file in the mount point
-    if ($ssh->system("echo \"$test_string\" > $each_mount/.$test_string.$node_number")) {
+    # Create a file in the mount point with a timeout of 10 seconds
+    my $test_string_written;
+    eval {
+      local $SIG{ALRM} = sub {die "Timed out"};
+      alarm 10; # Timeout in seconds
+      system("$bpsh", "--stdout", "$each_mount/.${test_string}.$node_number", "$node_number", "printf", "$test_string");
+
+      # Did the call to bpsh fail?
+      my $status = $? / 256;
+      if ($? == -1) {
+	warn BOLD RED "Call to bpsh failed on node $node_number.";
+      }
+      elsif ($status != 0) {
+	warn BOLD RED "bpsh failed with status $status on node $node_number.";
+      }
+      $test_string_written = `$bpsh $node_number cat $each_mount/.$test_string.$node_number`;
+
+      # Did the call to bpsh fail?
+      $status = $? / 256;
+      if ($? == -1) {
+	warn BOLD RED "Call to bpsh failed on node $node_number.";
+      }
+      elsif ($status != 0) {
+	warn BOLD RED "bpsh failed with status $status on node $node_number.";
+      }
+
+      alarm 0;
+    };
+
+    # Did the system commands time out?
+    if ($@ =~ m/^Timed out/) {
+      warn BOLD RED "Failed to create test file in mount '$each_mount' on node $node_number: Timed out.\n";
+    }
+
+    # Did the test work?
+    if ($test_string eq $test_string_written) {
       print "Mount '$each_mount' is OK.\n";
     }
     else {
-      warn BOLD RED "PROBLEM: Failed to create test file in mount '$each_mount' on node $node_number: " . $ssh->error;
+      warn BOLD RED "Failed to create test file in mount '$each_mount' on node $node_number: Test strings didn't match";
       syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Unable to write to mount '$each_mount' on node $node_number. -- $0.");
       next;
     }
     
-    # Remove the file from the mount point
-    if ($ssh->system("rm -f $each_mount/.$test_string.$node_number")) {
-      print "Successfully removed test file.\n";
-    }
-    else {
-      warn BOLD RED "ERROR: Failed to remove test file in mount '$each_mount' on $node_number: " . $ssh->error;
-      next;
+    # Remove the file from the mount point with a timeout of 10 seconds
+    eval {
+      local $SIG{ALRM} = sub {die "Timed out"};
+      alarm 10; # Timeout in seconds
+      system("rm", "-f", "$each_mount/.$test_string.$node_number");
+
+      # Did the call to bpsh fail?
+      my $status = $? / 256;
+      if ($? == -1) {
+	warn BOLD RED "Call to bpsh failed on node $node_number.";
+      }
+      elsif ($status != 0) {
+	warn BOLD RED "bpsh failed with status $status on node $node_number.";
+      }
+
+      alarm 0;
+    };
+
+    # Did the system commands time out?
+    if ($@ =~ m/^Timed out/) {
+      warn BOLD RED "Failed to remove test file in mount '$each_mount' on node $node_number: Timed out.\n";
     }
 
   }
@@ -139,14 +172,23 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
   }
   else {
     # Get the IB device info
-    my ($stdout, $stderr) = $ssh->capture2("ibv_devinfo");
+    my $ibv_devinfo_output = `$bpsh $node_number ibv_devinfo`;
+
+    # Did the call to bpsh fail?
+    my $status = $? / 256;
+    if ($? == -1) {
+      warn BOLD RED "Call to bpsh failed.";
+    }
+    elsif ($status != 0) {
+      warn BOLD RED "bpsh failed with status $status on node $node_number.";
+    }
 
     # Check the state
-    if (($stdout) and ($stdout =~ m/state:\s+PORT_ACTIVE/)) {
+    if (($ibv_devinfo_output) and ($ibv_devinfo_output =~ m/state:\s+PORT_ACTIVE/)) {
       print "IB is OK.\n";
     }
     else {
-      warn BOLD RED "PROBLEM: Infiniband state is not PORT_ACTIVE on node $node_number.\n";
+      warn BOLD RED "Infiniband state is not PORT_ACTIVE on node $node_number.\n";
       syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Infiniband state is not PORT_ACTIVE on node $node_number.");
     }
 
@@ -162,27 +204,28 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
   else {
 
     # Get the scratch space info
-    my ($stdout, $stderr) = $ssh->capture2("df -hP /scratch");
-    $ssh->error and warn "Failed to get /scratch info on node $node_number: " . $ssh->error;
+    my $df_output = `$bpsh $node_number df -hP /scratch`;
+
+    # Did the call to bpsh fail?
+    my $status = $? / 256;
+    if ($? == -1) {
+      warn BOLD RED "Call to bpsh failed.";
+    }
+    elsif ($status != 0) {
+      warn BOLD RED "bpsh failed with status $status.";
+    }
 
     # Get the free space
-    my $local_scratch_used_space = (split(/\s+/,$stdout))[11];
+    my $local_scratch_used_space = (split(/\s+/,$df_output))[11];
     $local_scratch_used_space =~ s/\%//;
 
     # Check the free space
     if ($local_scratch_used_space < 95) {
       print "Filesystem /scratch usage is OK (${local_scratch_used_space}% used).\n";
 
-#       # Write out the usage so we can track it (needed so we can alert only if usage has been high for multiple checks by this 
-#       # script rather than alerting every time we this script runs)
-#       $ssh->system("echo \"$local_scratch_used_space:0\" > /var/tmp/.scratch_usage")
-#       $ssh->error and warn BOLD RED "Failed to update scratch free space file on node $node_number: " . $ssh->error;
-
     } else {
-      warn BOLD RED "PROBLEM: Filesystem /scratch is ${local_scratch_used_space}% full on node $node_number.\n";
+      warn BOLD RED "Filesystem /scratch is ${local_scratch_used_space}% full on node $node_number.\n";
       syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Filesystem /scratch is ${local_scratch_used_space}% full on node $node_number. -- $0.");
-
-      # Write out the usage so we can track it
 
     }
 

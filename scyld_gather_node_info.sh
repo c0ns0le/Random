@@ -57,7 +57,11 @@ while [ "$node" -lt "$num_nodes" ];do
   #Type of CPU
   bpsh n$node awk -F': ' '/model name/ {print $2;exit}' /proc/cpuinfo | tr '\n' ','>>"$output_file"
   #Number of CPU cores
-  bpsh n$node egrep -c '^processor' /proc/cpuinfo | tr '\n' ','>>"$output_file"
+#  bpsh n$node egrep -c '^processor' /proc/cpuinfo | tr '\n' ','>>"$output_file"
+  num_phys_procs=$(bpsh n$node dmidecode | grep -c 'Processor Information')
+  num_siblings_proc=$(bpsh n$node awk '/siblings/ {print $3;exit}' /proc/cpuinfo)
+  num_cores=$(($num_phys_procs * $num_siblings_proc))
+  printf "${num_cores}," >>"$output_file"
   #GPU found?
   bpsh n$node lsmod | egrep '^nvidia' >/dev/null
   if [ "$?" = "0" ];then

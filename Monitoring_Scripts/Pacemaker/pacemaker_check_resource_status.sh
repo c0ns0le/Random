@@ -1,9 +1,8 @@
 #!/bin/bash
-#Name: pacemaker_check_resource_status.sh
-#Description: Bash script to ensure all resources with Pacemaker/Corosync are started.
-#Written by: Jeff White (jaw171@pitt.edu) of the University of Pittsburgh
-#License: This script is released under version three (3) of the GNU General Public License (GPL) of the FSF, the text of which is available at http://www.fsf.org/licensing/licenses/gpl-3.0.html
-##This is a free script, you are free to change and redistribute it.  There is NO WARRANTY, to the extent permitted by law.
+# Description: Bash script to ensure all resources with Pacemaker/Corosync are started.
+# Written by: Jeff White (jaw171@pitt.edu) of the University of Pittsburgh
+# Last change: Changed header
+# Version: 1
 
 ##### License
 # This script is released under version three (3) of the GNU General Public License (GPL) of the 
@@ -13,23 +12,13 @@
 # There is NO WARRANTY, not even for FITNESS FOR A PARTICULAR USE to the extent permitted by U.S. law.
 #####
 
-##### Revision history
-#
-# 0.3 - 2011-11-13 - Fixed a bug with $PATH. - Jeff White
-#
-# 0.2 - 2011-11-12 - Added details to the alerting. - Jeff White
-#
-# 0.1 - 2011-10-17 - Initial version. - Jeff White
-#
-#####
-
 script="${0##*/}"
 temp_dir="/tmp/.$script"
 crm_bin="/usr/sbin/crm"
 crm_resource_bin="/usr/sbin/crm_resource"
 sed_bin="/bin/sed"
 awk_bin="/bin/gawk"
-num_resources_expected="5" #The number of resources we expect to see.
+num_resources_expected="7" #The number of resources we expect to see.
 PATH=$PATH:/usr/sbin
 
 function _print-stderr-then-exit { # Usage: _print-stderr-then-exit "Some error text" exitnumber

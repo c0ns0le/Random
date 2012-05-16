@@ -35,7 +35,7 @@ set pass [lindex \$argv 2]
 set command [lindex \$argv 3]
 
 # connect to server via ssh and login
-spawn ssh -q \$user@\$server
+spawn ssh -o NumberOfPasswordPrompts=1 -q \$user@\$server
 
 #login handles cases:
 #   login with keys (no user/pass)
@@ -97,7 +97,7 @@ fi
 
 cat $servers_file | while read -r each_box;do
   echo "$each_box:"
-  $expect_script $each_box "$ssh_user" "$ssh_pass" "$remote_command" | awk '/Red Hat/||/CentOS/ {print} END {print ""}'
+  $expect_script $each_box "$ssh_user" "$ssh_pass" "$remote_command"
 done
 
 rm -f $expect_script

@@ -319,7 +319,7 @@ use strict; #Enforce 'good' programming rules
 # }
 
 #Get the system time
- my @time = localtime; #$sec, $min, $hour, $day, $mon, $year, $wday, $yday, $isdst
+#  my @time = localtime; #$sec, $min, $hour, $day, $mon, $year, $wday, $yday, $isdst
 # my $time = localtime; # Scalar context
 # print "The scalar time is $time\n"; #The time is Thu Mar  1 21:33:52 2012
 # print "The list time is @time\n"; #The time is 44 34 21 1 2 112 4 60 0

@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 # Description: Perl script to check the health of compute nodes in a Beowulf HPC cluster
 # Written By: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 6.1 (2012-5-4)
-# Last change: Removed Net::OpenSSH module
+# Version: 6.2 (2012-5-7)
+# Last change: Fixed an example in the -h option
 
 ##### License
 # This script is released under version three (3) of the GNU General Public License (GPL) of the 
@@ -37,9 +37,9 @@ if ($helpopt) {
   print "-m | --mounts : Mount points to check.  Default: None\n";
   print "-n | --nodes : Which nodes to check.  Default: 0-241\n";
   print "\nExamples:\n";
-  print "Check nodes 0 through 9 including their /home mount: $0 -m /home -n 0..9\n";
+  print "Check nodes 0 through 9 including their /home mount: $0 -m /home -n 0-9\n";
   print "Check nodes 0 through 9 and 15 including multiple mount points: $0 -m /home -m /scratch_global -n 0-9,15\n";
-  print "\nWarning: The -n option doesn't check for correct syntax so use the corect syntax or expect problems.\n";
+  print "\nWarning: The -n option doesn't check for correct syntax so use the correct syntax or expect problems.\n";
   exit;
 }
 

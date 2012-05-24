@@ -3,8 +3,8 @@ use strict;
 use warnings;
 # Description: Checks the status of mdadm disk arrays
 # Written by: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 1
-# Last change: Initial version
+# Version: 2
+# Last change: Fixing backwards test, removing 'exit' on unlean array, adding 'active' state check
 
 # License
 # This script is released under version three of the GNU General Public License (GPL) of the 
@@ -48,21 +48,21 @@ foreach my $each_array (@ARGV) {
 
   # Get the array state
   my $array_state_line = (grep(/\s+State/,@mdadm_detail))[0];
-  my $array_state = (split(/ : /,$array_state_line))[1];
+  my $array_state = (split(/\s+/,$array_state_line))[3];
   chomp $array_state;
-  print "State: $array_state\n";
 
   # Check the array state
-  if ($array_state eq "clean") {
-    print BOLD RED "Array '$each_array' is not clean.  State: $array_state\n";
-    syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Array '$each_array' is not clean.  State: $array_state. -- $0.");
-    exit 1;
+  if ($array_state !~ m/^(clean|active)$/) {
+    print BOLD RED "Array '$each_array' is not clean/active.  State: ${array_state}x\n";
+    syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Array '$each_array' is not clean/active.  State: $array_state. -- $0.");
   }
 
   # Check that the expected number of RAID devices are active, working, and none are failed
   # FIXME
 
-  print BOLD GREEN "Array clean: $each_array\n";
+  else {
+    print BOLD GREEN "Array clean/active: $each_array\n";
+  }
 }
 
 closelog;

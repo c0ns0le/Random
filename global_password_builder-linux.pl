@@ -3,8 +3,8 @@ use strict;
 use warnings;
 # Description: Creates a new global /etc/passwd, /etc/shadow, and /etc/group on GNU+Linux (tested on RHEL)
 # Written by: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 1
-# Last change: Initial version
+# Version: 2
+# Last change: Switched to using hashes instead of arrays and removed regex tests,  Now runs in <3 seconds vs. 50 minutes before.
 
 # License
 # This script is released under version three of the GNU General Public License (GPL) of the 
@@ -109,11 +109,32 @@ $RUN_LOG->autoflush(1);
 
 log_info("Starting run of $0 - $$\n");
 
-# Read the files into memory.  Why?  Because I (jaw171) am too lazy to do this a better way.
-my @global_passwd = <$GLOBAL_PASSWD>;
-my @local_passwd = <$LOCAL_PASSWD>;
-my @global_group = <$GLOBAL_GROUP>;
-my @local_group = <$LOCAL_GROUP>;
+# Create hashes of the files' data
+my (%global_passwd, %local_passwd, %global_group, %local_group);
+for my $each_line (<$GLOBAL_PASSWD>) {
+  chomp $each_line;
+  my $user = (split(m/:/, $each_line))[0];
+  $global_passwd{$user} = $each_line;
+}
+
+for my $each_line (<$LOCAL_PASSWD>) {
+  chomp $each_line;
+  my $user= (split(m/:/, $each_line))[0];
+  $local_passwd{$user} = $each_line;
+}
+
+for my $each_line (<$GLOBAL_GROUP>) {
+  chomp $each_line;
+  my $group = (split(m/:/, $each_line))[0];
+  $global_group{$group} = $each_line;
+}
+
+for my $each_line (<$LOCAL_GROUP>) {
+  chomp $each_line;
+  my $group = (split(m/:/, $each_line))[0];
+  $local_group{$group} = $each_line;
+}
+
 close $GLOBAL_PASSWD;
 close $LOCAL_PASSWD;
 close $GLOBAL_GROUP;
@@ -121,28 +142,26 @@ close $LOCAL_GROUP;
 
 # Loop through the global group file, add groups which don't exist locally
 log_info("Working on adding new groups $0 - $$\n");
-for my $each_global_line (@global_group) {
-  chomp $each_global_line;
-  print "Working on global line: $each_global_line\n" if ($verbose);
+for my $each_global_group (keys(%global_group)) {
 
-  # Split apart the line
-  my ($group, $password, $gid, $members) = split(m/:/, $each_global_line);
-  if ((!$group) or (!$gid)) {
-    log_error("One or more fields are null for group '$group', skipping: $group, $password, $gid, $members");
-    next;
-  }
-
-  print "Checking for global group: $group\n" if ($verbose);
+  print "Checking for global group: $each_global_group\n" if ($verbose);
 
   # Skip the group if it in @skip_groups (system groups)
-  if (grep(m/\Q$group\E/, @skip_groups)) {
-    print "Group '$group' found in skip array, skipping.\n" if ($verbose);
+  if (grep(m/\Q$each_global_group\E/, @skip_groups)) {
+    print "Group '$each_global_group' found in skip array, skipping.\n" if ($verbose);
     next;
   }
 
   # Add the group if they are new
-  if (!grep(m/^\Q$group\E:/, @local_group)) {
-    print "New group found: $group\n";
+  if (!$local_group{$each_global_group}) {
+    print "New group found: $each_global_group\n";
+
+    # Split apart the line
+    my ($group, $gid) = (split(m/:/, $global_group{$each_global_group}))[0,2];
+    if ((!$group) or (!$gid)) {
+      log_error("One or more fields are null for group '$group', skipping: $group, $gid");
+      next;
+    }
 
     # Add the new group
     system("/usr/sbin/groupadd --gid $gid $group >>$run_log 2>&1");
@@ -158,11 +177,11 @@ for my $each_global_line (@global_group) {
     }
     else {
       log_error("Failed to create group '$group'.  Status '$status', see the run log for details.", "NOC-NETCOOL-TICKET");
-      log_error("Failed: $group, $password, $gid, $members");
+      log_error("Failed: $group, $gid");
     }
   }
   else {
-    print "Skipping existing group '$group'\n" if ($verbose);
+    print "Skipping existing group '$each_global_group'\n" if ($verbose);
   }
 }
 
@@ -173,29 +192,27 @@ for my $each_global_line (@global_group) {
 
 # Loop through the global password file, add users which don't exist locally
 log_info("Working on adding new users $0 - $$\n");
-for my $each_global_line (@global_passwd) {
-  chomp $each_global_line;
-  print "Working on global line: $each_global_line\n" if ($verbose);
+for my $each_global_user (keys(%global_passwd)) {
 
-  # Split apart the line
-  my ($user, $password, $uid, $gid, $gecos, $home, $shell) = split(m/:/, $each_global_line);
-  $gecos = "Unknown" if (!$gecos);
-  if ((!$user) or (!$password) or (!$uid) or (!$gid) or (!$gecos) or (!$home) or (!$shell)) {
-    log_error("One or more fields are null for user '$user', skipping: $user, $password, $uid, $gid, $gecos, $home, $shell");
-    next;
-  }
-
-  print "Checking for global user: $user\n" if ($verbose);
+  print "Checking for global user: $each_global_user\n" if ($verbose);
 
   # Skip the user if it in @skip_users (system accounts)
-  if (grep(m/\Q$user\E/, @skip_users)) {
-    print "User '$user' found in skip array, skipping.\n" if ($verbose);
+  if (grep(m/\Q$each_global_user\E/, @skip_users)) {
+    print "User '$each_global_user' found in skip array, skipping.\n" if ($verbose);
     next;
   }
 
   # Add the user if they are new
-  if (!grep(m/^\Q$user\E:/, @local_passwd)) {
-    print "New user found: $user\n";
+  if (!$local_passwd{$each_global_user}) {
+    print "New user found: $each_global_user\n";
+
+    # Split apart the line
+    my ($user, $password, $uid, $gid, $gecos, $home, $shell) = split(m/:/, $global_passwd{$each_global_user});
+    $gecos = "Unknown" if (!$gecos);
+    if ((!$user) or (!$password) or (!$uid) or (!$gid) or (!$gecos) or (!$home) or (!$shell)) {
+      log_error("One or more fields are null for user '$user', skipping: $user, $password, $uid, $gid, $gecos, $home, $shell");
+      next;
+    }
 
     # Add the new user
     system("/usr/sbin/useradd --shell '${shell}' --comment \"${gecos}\" --home '${home}' --gid '${gid}' --uid '${uid}' -M --no-user-group '${user}' >>$run_log 2>&1");
@@ -215,50 +232,45 @@ for my $each_global_line (@global_passwd) {
     }
   }
   else {
-    print "Skipping existing user '$user'\n" if ($verbose);
+    print "Skipping existing user '$each_global_user'\n" if ($verbose);
   }
 }
 
 
 # Loop through the local password file, remove users which don't exist globally
 log_info("Working on removing terminated users locally - $$\n");
-for my $each_local_line (@local_passwd) {
-  chomp $each_local_line;
-  print "Working on local line: $each_local_line\n" if ($verbose);
+for my $each_local_user (keys(%local_passwd)) {
 
-  # Split apart the line
-  my ($user, $password, $uid, $gid, $gecos, $home, $shell) = split(m/:/, $each_local_line);
-
-  print "Checking for local user: $user\n" if ($verbose);
+  print "Checking for local user: $each_local_user\n" if ($verbose);
 
   # Skip the user if it in @skip_users (system accounts)
-  if (grep(m/\Q$user\E/, @skip_users)) {
-    print "User '$user' found in skip array, skipping.\n" if ($verbose);
+  if (grep(m/\Q$each_local_user\E/, @skip_users)) {
+    print "User '$each_local_user' found in skip array, skipping.\n" if ($verbose);
     next;
   }
 
   # Delete the user if they no longer exist globally
-  if (!grep(m/^\Q$user\E:/, @global_passwd)) {
-    print "Terminated user found: $user\n";
+  if (!$global_passwd{$each_local_user}) {
+    print "Terminated user found: $each_local_user\n";
 
     # Remove the old user
-    system("/usr/sbin/userdel $user >>$run_log 2>&1");
+    system("/usr/sbin/userdel $each_local_user >>$run_log 2>&1");
     my $status = $? / 256;
     print "Status: $status\n";
 
     # Did the call to useradd fail?
     if ($status == 0) {
-      print "Successfully removed user: $user\n" if ($verbose);
+      print "Successfully removed user: $each_local_user\n" if ($verbose);
     }
     elsif ($? == -1) {
-      log_error("Failed to call /usr/sbin/userdel for '$user'.", "NOC-NETCOOL-TICKET");
+      log_error("Failed to call /usr/sbin/userdel for '$each_local_user'.", "NOC-NETCOOL-TICKET");
     }
     else {
-      log_error("Failed to remove user '$user'.  Status '$status', see the run log for details.", "NOC-NETCOOL-TICKET");
+      log_error("Failed to remove user '$each_local_user'.  Status '$status', see the run log for details.", "NOC-NETCOOL-TICKET");
     }
   }
   else {
-    print "Skipping still existing user '$user'\n" if ($verbose);
+    print "Skipping still existing user '$each_local_user'\n" if ($verbose);
   }
 }
 

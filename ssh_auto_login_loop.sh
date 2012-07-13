@@ -97,7 +97,7 @@ fi
 
 cat $servers_file | while read -r each_box;do
   echo "$each_box:"
-  $expect_script $each_box "$ssh_user" "$ssh_pass" "$remote_command"
+  $expect_script $each_box "$ssh_user" "$ssh_pass" "$remote_command && \"echo $each_box: yes\" || echo \"$each_box: no\""
 done
 
 rm -f $expect_script

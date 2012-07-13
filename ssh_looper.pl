@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 # Description: Automatically SSH to many systems to run a command or transfer a file.
 # Written by: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 1
-# Last change: Initial version
+# Version: 2
+# Last change: Added skip blank lines and comments to main loop
 
 # License
 # This script is released under version three of the GNU General Public License (GPL) of the 
@@ -98,6 +98,11 @@ else {
 
 while (my $each_system = <>) {
   chomp $each_system;
+
+  # Skip blank lines and comments
+  if (($each_system =~ m/^$/) or ($each_system =~ m/^#/)) {
+    next;
+  }
 
   # Open an ssh connection
   print BOLD BLUE "Opening SSH connection on $each_system\n" if ($verbose);

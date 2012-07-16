@@ -3,8 +3,8 @@ use strict;
 use warnings;
 # Description: Creates a new global /etc/passwd, /etc/shadow, and /etc/group on GNU+Linux (tested on RHEL)
 # Written by: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 2
-# Last change: Switched to using hashes instead of arrays and removed regex tests,  Now runs in <3 seconds vs. 50 minutes before.
+# Version: 3
+# Last change: Don't remove >3500 users per run, don't remove users with UID <500
 
 # License
 # This script is released under version three of the GNU General Public License (GPL) of the 
@@ -23,10 +23,10 @@ use IO::Handle;
 my $run_log = "/var/log/passwd_builder.log";
 my $verbose = 0;
 my @skip_users = qw(root bin daemon adm lp sync shutdown halt mail uucp operator games gopher ftp nobody dbus vcsa rpc \
-abrt saslauth postfix qpidd haldaemon rpcuser nfsnobody ntp sshd tcpdump oprofile);
+abrt saslauth postfix qpidd haldaemon rpcuser nfsnobody ntp sshd tcpdump oprofile SecurityScanSvc apache);
 my @skip_groups = qw(root bin daemon sys adm tty disk lp mem kmem wheel mail uucp man games gopher video dip ftp lock \
 audio nobody users dbus utmp utempter floppy vcsa rpc abrt cdrom tape dialout qpidd saslauth postdrop postfix haldaemon \
-rpcuser nfsnobody ntp stapdev stapusr sshd cgred tcpdump screen oprofile slocate);
+rpcuser nfsnobody ntp stapdev stapusr sshd cgred tcpdump screen oprofile slocate apache);
 my ($RUN_LOG, $GLOBAL_PASSWD, $LOCAL_PASSWD, $GLOBAL_GROUP, $LOCAL_GROUP);
 
 GetOptions('h|help' => \my $helpopt,
@@ -107,7 +107,7 @@ if (!open($LOCAL_GROUP, "<", "/etc/group")) {
 # Flush writes to the run log so we don't lose error messages
 $RUN_LOG->autoflush(1);
 
-log_info("Starting run of $0 - $$\n");
+log_info("Starting run of $0 - $$");
 
 # Create hashes of the files' data
 my (%global_passwd, %local_passwd, %global_group, %local_group);
@@ -140,8 +140,16 @@ close $LOCAL_PASSWD;
 close $GLOBAL_GROUP;
 close $LOCAL_GROUP;
 
+# Check how much smaller the global file is than the local file
+# This is so that if the global passwd is corrupt we don't blow away the local passwd
+# and break everything (including removing admin users!).
+if ((keys(%local_passwd) - keys(%global_passwd)) >= 3500) {
+  log_error("Too many users to be removed locally, check that passwd.global is intact!", "NOC-NETCOOL-TICKET");
+  exit 1;
+}
+
 # Loop through the global group file, add groups which don't exist locally
-log_info("Working on adding new groups $0 - $$\n");
+log_info("Working on adding new groups $0 - $$");
 for my $each_global_group (keys(%global_group)) {
 
   print "Checking for global group: $each_global_group\n" if ($verbose);
@@ -166,7 +174,7 @@ for my $each_global_group (keys(%global_group)) {
     # Add the new group
     system("/usr/sbin/groupadd --gid $gid $group >>$run_log 2>&1");
     my $status = $? / 256;
-    print "Status: $status\n";
+    print "Status: $status\n" if ($verbose);
 
     # Did the call to useradd fail?
     if ($status == 0) {
@@ -191,7 +199,7 @@ for my $each_global_group (keys(%global_group)) {
 
 
 # Loop through the global password file, add users which don't exist locally
-log_info("Working on adding new users $0 - $$\n");
+log_info("Working on adding new users $0 - $$");
 for my $each_global_user (keys(%global_passwd)) {
 
   print "Checking for global user: $each_global_user\n" if ($verbose);
@@ -217,7 +225,7 @@ for my $each_global_user (keys(%global_passwd)) {
     # Add the new user
     system("/usr/sbin/useradd --shell '${shell}' --comment \"${gecos}\" --home '${home}' --gid '${gid}' --uid '${uid}' -M --no-user-group '${user}' >>$run_log 2>&1");
     my $status = $? / 256;
-    print "Status: $status\n";
+    print "Status: $status\n" if ($verbose);
 
     # Did the call to useradd fail?
     if ($status == 0) {
@@ -238,7 +246,7 @@ for my $each_global_user (keys(%global_passwd)) {
 
 
 # Loop through the local password file, remove users which don't exist globally
-log_info("Working on removing terminated users locally - $$\n");
+log_info("Working on removing terminated users locally - $$");
 for my $each_local_user (keys(%local_passwd)) {
 
   print "Checking for local user: $each_local_user\n" if ($verbose);
@@ -253,10 +261,23 @@ for my $each_local_user (keys(%local_passwd)) {
   if (!$global_passwd{$each_local_user}) {
     print "Terminated user found: $each_local_user\n";
 
+    # Split apart the line
+    my ($user, $password, $uid, $gid, $gecos, $home, $shell) = split(m/:/, $local_passwd{$each_local_user});
+    $gecos = "Unknown" if (!$gecos);
+    if ((!$user) or (!$password) or (!$uid) or (!$gid) or (!$gecos) or (!$home) or (!$shell)) {
+      log_error("One or more fields are null for user '$user', skipping: $user, $password, $uid, $gid, $gecos, $home, $shell");
+      next;
+    }
+
+    # Skip the user if UID is <500.  This is so we don't blow away system accounts.
+    if ($uid < 500) {
+      log_error("Not removing '$user', UID of '$uid' is below 500 and may be a system account.", "NOC-NETCOOL-TICKET");
+    }
+
     # Remove the old user
     system("/usr/sbin/userdel $each_local_user >>$run_log 2>&1");
     my $status = $? / 256;
-    print "Status: $status\n";
+    print "Status: $status\n" if ($verbose);
 
     # Did the call to useradd fail?
     if ($status == 0) {
@@ -274,5 +295,5 @@ for my $each_local_user (keys(%local_passwd)) {
   }
 }
 
-log_info("Completed run of $0 - $$\n");
+log_info("Completed run of $0 - $$");
 closelog;

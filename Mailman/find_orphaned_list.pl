@@ -3,8 +3,8 @@ use strict;
 use warnings;
 # Description: Find orphaned Mailman lists and Postini aliases
 # Written by: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 1
-# Last change: Initial version
+# Version: 1.1
+# Last change: Fixed the regex for the orphaned alias
 
 # License
 # This script is released under version three of the GNU General Public License (GPL) of the 
@@ -189,7 +189,7 @@ for my $each_line (<$POSTINI_ALIASES_FILE>) {
   my $user = $owner;
   $user =~ s/@.*$//;
 
-  if (grep(m/\Q$user\E/, @terminated_users)) {
+  if (grep(m/^\Q$user\E$/, @terminated_users)) {
     print "Found orphaned alias: $alias => $owner\n";
     $num_postini_orphans++;
   }

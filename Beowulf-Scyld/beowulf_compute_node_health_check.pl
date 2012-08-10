@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 # Description: Perl script to check the health of compute nodes in a Beowulf HPC cluster
 # Written By: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 6.2 (2012-5-7)
-# Last change: Fixed an example in the -h option
+# Version: 7 (2012-8-10)
+# Last change: Added a simple Moab status check, disabled the syslog message for full /scratch
 
 ##### License
 # This script is released under version three (3) of the GNU General Public License (GPL) of the 
@@ -22,6 +22,7 @@ $Term::ANSIColor::AUTORESET = 1;
 # Where are our binaries?
 my $bpstat = "/usr/bin/bpstat";
 my $bpsh = "/usr/bin/bpsh";
+my $checknode = "/opt/sam/moab/6.1.7/bin/checknode";
 
 # Defaults for some options
 my @mounts;
@@ -81,11 +82,32 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
   if ($node_status !~ m/^up$/) {
     print STDERR BOLD RED "Node $node_number is not up.  State: $node_status.\n\n";
     syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Node $node_number is not up.  State: $node_status.\n. -- $0.");
-    next
+    next;
   }
   print "Node $node_number is up.\n";
 
 
+  # Check if Moab thinks the nodes are up
+  system("$checknode n$node_number >/dev/null"); # /bin/sh is called here to handle the >/dev/null
+  
+  # Did the call to checknode fail?
+  my $status = $? / 256;
+  if ($? == -1) {
+    warn BOLD RED "Call to Moab's checknode failed on node $node_number.";
+  }
+  elsif ($status == 0) {
+    print "Moab is OK\n";
+  }
+  elsif ($status == 1) {
+    print STDERR BOLD RED "Moab exited with status '$status' on node $node_number.  Down?\n";
+    syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Moab exited with status '$status'.  Down?\n. -- $0.");
+  }
+  else {
+    print STDERR BOLD RED "Moab's checknode failed with status $status on node $node_number.";
+    syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Moab's checknode failed with status $status on node $node_number.\n. -- $0.");
+  }
+  
+  
   # Check the node's mount points
   for my $each_mount (@mounts) {
 
@@ -224,7 +246,7 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
 
     } else {
       warn BOLD RED "Filesystem /scratch is ${local_scratch_used_space}% full on node $node_number.\n";
-      syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Filesystem /scratch is ${local_scratch_used_space}% full on node $node_number. -- $0.");
+#       syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Filesystem /scratch is ${local_scratch_used_space}% full on node $node_number. -- $0.");
 
     }
 

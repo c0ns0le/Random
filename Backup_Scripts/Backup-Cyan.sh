@@ -13,18 +13,15 @@
 #####
 
 ##### Revision history
+# 1.9.8 - 2012-6-16 - Fixed the help text. - Jeff White
 # 1.9.7 - 2012-4-17 - Removed rsync's --delete from the Linux OS -l option, moved it to -L, removed the run log remover section. - Jeff White
-# 1.9.6 - 2012-03-31 - Removed the Apache httpd option, moved the Andrid option to -a. - Jeff White
+# 1.9.6 - 2012-03-31 - Removed the Apache httpd option, moved the Android option to -a. - Jeff White
 # 1.9.5 - 2012-03-05 - Added /tmp to the LinuxOS exclusion list, minor code cleanup. - Jeff White
 # 1.9.4 - 2012-02-05 - Switched datastore option to one that uses rsync's --delete and another that does not. - Jeff White
 # 1.9.3 - 2012-01-16 - Really removed Viridian and Urobilin as LinuxOS clients, added Byzantium as a LinuxOS client. - Jeff White
 # 1.9.2 - 2012-01-14 - Added Skobeloff and Vermilion as a LinuxOS clients and Skobeloff as a MySQL client, removed Viridian as a LinuxOS and MySQL client, removed an old config directive for the LinuxOS section. - Jeff White
 # 1.9.1 - 2011-12-24 - Removed permfix script, removed some hard coded paths to binaries, re-wrote apache httpd section, fixed some documentation. - Jeff White
 # 1.9 - 2011-12-23 - Added Android option. - Jeff White
-# 1.8.4 - 2011-12-13 - Excluded /bricks from Linux OS backups. - Jeff White
-# 1.8.3 - 2011-12-12 - Minor fixes with logging. - Jeff White
-# 1.8.2 - 2011-12-11 - Changed the -d option to transfer via rsync's SSH. - Jeff White
-# 1.8.1 - 2011-12-11 - Re-wrote some of the VMware Workstation section. - Jeff White
 #####
 
 #SECURITY NOTES AND CONSIDERATIONS: -- READ THIS --
@@ -192,6 +189,7 @@ sql
 tc
 tc2
 /bricks
+/run
 EOF
 
 #Getmail configuration
@@ -402,10 +400,9 @@ while getopts "$OPTSTRING" OPT; do #The remotenason and DATOPT options are custo
     h)
       $catbin << EOF
 Usage: $script {-c -w -a -v -m -l -d -D -p -P -n -V -h}
--c : Enabled the Android option
+-a : Enabled the Android option
 -w : Enables the Palm WebOS option
 -g : Enables the getmail option
--a : Enables the Apache2 option
 -v : Enables the VMware option
 -o : Enables the Oracle VirtualBox option
 -m : Enables the MySQL option
@@ -524,11 +521,15 @@ if [ "$laptoplinopt" = 1 ];then
   if $sshbin $sshuser@Sangria -p $sshport : 1>>$log; then #Verify SSH works
       echo "$($time) - Creating package list." 1>>$log
       $sshbin $sshuser@Sangria -p $sshport "{
-	if which dpkg &>/dev/null; then
-	  dpkg --get-selections || echo "ERROR - $LINENO - Package creation with dpkg failed on Sangria!" 1>&2
-	else
-	  echo "ERROR - $LINENO - No package management binary dpkg, rpm, or ipkg found on Sangria, unable to create package list!" 1>&2
-	fi
+        if which dpkg &>/dev/null; then
+          dpkg --get-selections || echo "ERROR - $LINENO - Package creation with dpkg failed on ${linclient}!" 1>&2
+        elif which rpm &>/dev/null; then 
+          rpm -qa || echo "ERROR - $LINENO - Package creation with rpm failed on ${linclient}!" 1>&2
+        elif which ipkg &>/dev/null; then
+          ipkg status || echo "ERROR - $LINENO - Package creation with ipkg failed on ${linclient}!" 1>&2
+        else
+          echo "ERROR - $LINENO - No package management binary dpkg, rpm, or ipkg found on ${linclient}, unable to create package list!" 1>&2
+        fi
       }" 1> "${bkupdir}/Sangria/Packages/Temp/$($date)-Installed-Packages-Sangria.log"
       echo "$($time) - Starting rsync." 1>>$log
       $sudobin $rsyncbin -aDHAX --stats --delete --exclude-from=/tmp/exclude_linuxos -e "$sudobin -u $sshuser $sshbin -l $sshuser -p $sshport" --rsync-path="$sudobin $rsyncbin" Sangria:/ ${bkupdir}/Sangria/OS 1>>$log || _printerr "ERROR - $LINENO - Linux OS backup on Sangria failed."
@@ -606,7 +607,7 @@ if [ "$androidopt" = 1 ]; then #Android section
     echo "$($time) - Starting remote commands." 1>>$log
     if $sshbin -i $android_private_ssh_key root@$androidclient -p $sshport : 1>>$log; then #Verify SSH works
      echo "$($time) - Starting rsync." 1>>$log
-      $sudobin $rsyncbin -aDH --stats --delete --exclude-from=/tmp/exclude_android -e "$sshbin -l root -i $android_private_ssh_key -p $sshport" ${androidclient}:/ ${bkupdir}/${androidclient}/OS 1>>$log || _printerr "ERROR - $LINENO - Android backup on $androidclient failed."
+      $sudobin $rsyncbin -aDH --stats --delete --exclude-from=/tmp/exclude_android -e "$sshbin -l root -i $android_private_ssh_key -p $sshport" --rsync-path=/data/data/berserker.android.apps.sshdroid/home/bin/rsync ${androidclient}:/ ${bkupdir}/${androidclient}/OS 1>>$log || _printerr "ERROR - $LINENO - Android backup on $androidclient failed."
     else
       _printerr "ERROR - $LINENO - SSH to backup source $androidclient failed.  Skipping client."
     fi

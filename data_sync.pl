@@ -3,8 +3,8 @@ use strict;
 use warnings;
 # Description: Daemon to sync a directory between two systems
 # Written by: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 1
-# Last change: Initial version
+# Version: 1.1
+# Last change: Made daemon_status() not send a USR1 signal to the daemon unless it was asked to print the status details
 
 # License
 # This script is released under version three of the GNU General Public License (GPL) of the 
@@ -341,12 +341,13 @@ sub daemon_status {
     return;
   }
   
-  # Send a USR1 to the daemon process
-  kill("USR1", $daemon_pid);
-
-  sleep 1;
-  
+ 
   if ($do_print) {
+    # Send a USR1 to the daemon process
+    kill("USR1", $daemon_pid);
+
+    sleep 1;
+  
     my $NAMEDPIPE;
     unless (open($NAMEDPIPE, "<", $pipe_path)) {
       log_error("Couldn't open pipe for reading: $!");

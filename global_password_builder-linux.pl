@@ -3,8 +3,8 @@ use strict;
 use warnings;
 # Description: Creates a new global /etc/passwd, /etc/shadow, and /etc/group on GNU+Linux (tested on RHEL)
 # Written by: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 3
-# Last change: Don't remove >3500 users per run, don't remove users with UID <500
+# Version: 3.1
+# Last change: Fixed bugs with the 'UID <500 skip user' section and moved logging of it to verbose only.
 
 # License
 # This script is released under version three of the GNU General Public License (GPL) of the 
@@ -271,7 +271,8 @@ for my $each_local_user (keys(%local_passwd)) {
 
     # Skip the user if UID is <500.  This is so we don't blow away system accounts.
     if ($uid < 500) {
-      log_error("Not removing '$user', UID of '$uid' is below 500 and may be a system account.", "NOC-NETCOOL-TICKET");
+      print "Not removing '$user', UID of '$uid' is below 500 and may be a system account.\n" if ($verbose);
+      next;
     }
 
     # Remove the old user

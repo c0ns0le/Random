@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 # Description: Perl script to check the health of compute nodes in a Beowulf HPC cluster
 # Written By: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 7 (2012-8-10)
-# Last change: Added a simple Moab status check, disabled the syslog message for full /scratch
+# Version: 7.1 (2012-8-10)
+# Last change: Added nodes to skip the IB check on
 
 ##### License
 # This script is released under version three (3) of the GNU General Public License (GPL) of the 
@@ -185,10 +185,14 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
 
 
   # Check the node's Infiniband
-  if (($node_number =~ m/^[4-9]$/) or # Which nodes to skip
-     ($node_number =~ m/^4[0-9]$/) or
-     ($node_number =~ m/^5[0-2,9]$/) or
-     ($node_number =~ m/^6[0-6]$/)) {
+  if ( # Which nodes to skip
+    ($node_number =~ m/^[4-9]$/) or 
+    ($node_number =~ m/^1[0-1]$/) or
+    ($node_number =~ m/^4[0-9]$/) or
+    ($node_number =~ m/^5[0-2,9]$/) or
+    ($node_number =~ m/^6[0-6]$/) or
+    ($node_number =~ m/^242$/)
+    ) {
     print "Infiniband check disabled, skipping\n";
   }
   else {

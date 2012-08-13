@@ -3,8 +3,8 @@ use strict;
 use warnings;
 # Description: Checks the status of mdadm disk arrays
 # Written by: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 2
-# Last change: Fixing backwards test, removing 'exit' on unlean array, adding 'active' state check
+# Version: 2.1
+# Last change: Fixed a bug with commas in the array status
 
 # License
 # This script is released under version three of the GNU General Public License (GPL) of the 
@@ -47,8 +47,9 @@ foreach my $each_array (@ARGV) {
   my @mdadm_detail = `$mdadm_binary --detail $each_array`;
 
   # Get the array state
-  my $array_state_line = (grep(/\s+State/,@mdadm_detail))[0];
-  my $array_state = (split(/\s+/,$array_state_line))[3];
+  my $array_state_line = (grep(/\s+State/, @mdadm_detail))[0];
+  my $array_state = (split(/\s+/, $array_state_line))[3];
+  $array_state =~ s/,//;
   chomp $array_state;
 
   # Check the array state

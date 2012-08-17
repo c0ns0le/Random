@@ -3,8 +3,8 @@ use strict;
 use warnings;
 # Description: Daemon to sync a directory between two systems
 # Written by: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 1.1
-# Last change: Made daemon_status() not send a USR1 signal to the daemon unless it was asked to print the status details
+# Version: 1.2
+# Last change: Changed the "Status" line in the output to show when the next run will start if it is sleeping
 
 # License
 # This script is released under version three of the GNU General Public License (GPL) of the 
@@ -91,8 +91,8 @@ sub do_stuff {
   # Returns true, always
   # Usage: do_stuff()
 
-  my $source = "/tmp/data_sync_source"; # Without the trailing slash
-  my $dest = "/var/tmp/data_sync_dest"; # Without the trailing slash
+  my $source = "/home"; # Without the trailing slash
+  my $dest = "/data/home"; # Without the trailing slash
   
   unless (-d $dest) {
     make_path($dest, {
@@ -288,6 +288,7 @@ sub daemon_start {
     $run_stats{"Run"}++;
     $run_stats{"Run start epoch"} = time();
     $run_stats{"Run start datetime"} = datetime();
+    $run_stats{"Status"} = "Running";
     print "Starting run number '$run_stats{'Run'}': $run_stats{'Run start datetime'}\n";
     
     do_stuff;
@@ -302,15 +303,15 @@ sub daemon_start {
     else {
       my $run_sleep_second = 86400 - $run_stats{"Last run length in seconds"};
       my $sleep_start_datetime = datetime();
+      my $waketime_epoch = $run_sleep_second + time();
+      my $waketime_datetime = scalar(localtime($waketime_epoch));
 
       log_info("Waiting '$run_sleep_second' seconds until starting the next run (sleep started at $sleep_start_datetime).");
-      $run_stats{"Status"} = "Sleeping '$run_sleep_second' seconds before next run (sleep started at $sleep_start_datetime)";
+      $run_stats{"Status"} = "Sleeping '$run_sleep_second' seconds before next run (will wake up at $waketime_datetime)";
 
       # Perl's sleep() is interruptable so if we get a USR1 signal (as we do to check 
       # our status) it wakes us up prematurely!
       system("/bin/sleep", $run_sleep_second);
-
-      $run_stats{"Status"} = undef;
     }
     
     

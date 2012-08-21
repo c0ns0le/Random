@@ -3,8 +3,8 @@ use strict;
 use warnings;
 # Description: Creates a new global /etc/passwd, /etc/shadow, and /etc/group on GNU+Linux (tested on RHEL)
 # Written by: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 3.1
-# Last change: Fixed bugs with the 'UID <500 skip user' section and moved logging of it to verbose only.
+# Version: 3.2
+# Last change: Switched the skip users and groups to hashes (arrays with grep() incorrectly matched some users)
 
 # License
 # This script is released under version three of the GNU General Public License (GPL) of the 
@@ -22,15 +22,97 @@ use IO::Handle;
 
 my $run_log = "/var/log/passwd_builder.log";
 my $verbose = 0;
-my @skip_users = qw(root bin daemon adm lp sync shutdown halt mail uucp operator games gopher ftp nobody dbus vcsa rpc \
-abrt saslauth postfix qpidd haldaemon rpcuser nfsnobody ntp sshd tcpdump oprofile SecurityScanSvc apache);
-my @skip_groups = qw(root bin daemon sys adm tty disk lp mem kmem wheel mail uucp man games gopher video dip ftp lock \
-audio nobody users dbus utmp utempter floppy vcsa rpc abrt cdrom tape dialout qpidd saslauth postdrop postfix haldaemon \
-rpcuser nfsnobody ntp stapdev stapusr sshd cgred tcpdump screen oprofile slocate apache);
+my %skip_users = (
+  "root" => "1",
+  "bin" => "1",
+  "daemon" => "1",
+  "adm" => "1",
+  "lp" => "1",
+  "sync" => "1",
+  "shutdown" => "1",
+  "halt" => "1",
+  "mail" => "1",
+  "uucp" => "1",
+  "operator" => "1",
+  "games" => "1",
+  "gopher" => "1",
+  "ftp" => "1",
+  "nobody"  => "1",
+  "dbus" => "1",
+  "vcsa" => "1",
+  "rpc" => "1",
+  "abrt" => "1",
+  "saslauth"  => "1",
+  "postfix" => "1",
+  "qpidd" => "1",
+  "haldaemon" => "1",
+  "rpcuser" => "1",
+  "nfsnobody" => "1",
+  "ntp" => "1",
+  "sshd" => "1",
+  "tcpdump" => "1",
+  "oprofile" => "1",
+  "SecurityScanSvc" => "1",
+  "apache" => "1",
+  "afswebtest01" => "1",
+  "afswebtest02" => "1",
+  "afswebtest03" => "1",
+);
+my %skip_groups = (
+  "root" => "1",
+  "bin" => "1",
+  "daemon" => "1",
+  "sys" => "1",
+  "adm" => "1",
+  "tty" => "1",
+  "disk" => "1",
+  "lp" => "1",
+  "mem" => "1",
+  "kmem" => "1",
+  "wheel" => "1",
+  "mail" => "1",
+  "uucp" => "1",
+  "man" => "1",
+  "games" => "1",
+  "gopher" => "1",
+  "video" => "1",
+  "dip" => "1",
+  "ftp" => "1",
+  "lock" => "1",
+  "audio" => "1",
+  "nobody" => "1",
+  "users" => "1",
+  "dbus" => "1",
+  "utmp" => "1",
+  "utempter" => "1",
+  "floppy" => "1",
+  "vcsa" => "1",
+  "rpc" => "1",
+  "abrt" => "1",
+  "cdrom" => "1",
+  "tape" => "1",
+  "dialout" => "1",
+  "qpidd" => "1",
+  "saslauth" => "1",
+  "postdrop" => "1",
+  "postfix" => "1",
+  "haldaemon" => "1",
+  "rpcuser" => "1",
+  "nfsnobody" => "1",
+  "ntp" => "1",
+  "stapdev" => "1",
+  "stapusr" => "1",
+  "sshd" => "1",
+  "cgred" => "1",
+  "tcpdump" => "1",
+  "screen" => "1",
+  "oprofile" => "1",
+  "slocate" => "1",
+  "apache" => "1",
+);
 my ($RUN_LOG, $GLOBAL_PASSWD, $LOCAL_PASSWD, $GLOBAL_GROUP, $LOCAL_GROUP);
 
 GetOptions('h|help' => \my $helpopt,
-           'p|password-file=s' => \my $ldap_password_file,
            'v|verbose+' => \$verbose,
           ) || die "Incorrect usage, use -h for help.\n";
 
@@ -154,9 +236,9 @@ for my $each_global_group (keys(%global_group)) {
 
   print "Checking for global group: $each_global_group\n" if ($verbose);
 
-  # Skip the group if it in @skip_groups (system groups)
-  if (grep(m/\Q$each_global_group\E/, @skip_groups)) {
-    print "Group '$each_global_group' found in skip array, skipping.\n" if ($verbose);
+  # Skip the group if it in %skip_groups (system groups)
+  if ($skip_groups{$each_global_group}) {
+    print "Group '$each_global_group' found in skip list, skipping.\n" if ($verbose);
     next;
   }
 
@@ -204,9 +286,9 @@ for my $each_global_user (keys(%global_passwd)) {
 
   print "Checking for global user: $each_global_user\n" if ($verbose);
 
-  # Skip the user if it in @skip_users (system accounts)
-  if (grep(m/\Q$each_global_user\E/, @skip_users)) {
-    print "User '$each_global_user' found in skip array, skipping.\n" if ($verbose);
+  # Skip the user if it in %skip_users (system accounts)
+  if ($skip_users{$each_global_user}) {
+    print "User '$each_global_user' found in skip list, skipping.\n" if ($verbose);
     next;
   }
 
@@ -251,9 +333,9 @@ for my $each_local_user (keys(%local_passwd)) {
 
   print "Checking for local user: $each_local_user\n" if ($verbose);
 
-  # Skip the user if it in @skip_users (system accounts)
-  if (grep(m/\Q$each_local_user\E/, @skip_users)) {
-    print "User '$each_local_user' found in skip array, skipping.\n" if ($verbose);
+  # Skip the user if it in %skip_users (system accounts)
+  if ($skip_users{$each_local_user}) {
+    print "User '$each_local_user' found in skip list, skipping.\n" if ($verbose);
     next;
   }
 

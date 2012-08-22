@@ -4,7 +4,7 @@ use warnings;
 # Description: Creates a new global /etc/passwd, /etc/shadow, and /etc/group on GNU+Linux (tested on RHEL)
 # Written by: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
 # Version: 3.2
-# Last change: Switched the skip users and groups to hashes (arrays with grep() incorrectly matched some users)
+# Last change: Added an "initialize" function to create a passwd.os on the first run, pretty'd up some of the code
 
 # License
 # This script is released under version three of the GNU General Public License (GPL) of the 
@@ -110,10 +110,11 @@ my %skip_groups = (
   "slocate" => "1",
   "apache" => "1",
 );
-my ($RUN_LOG, $GLOBAL_PASSWD, $LOCAL_PASSWD, $GLOBAL_GROUP, $LOCAL_GROUP);
+my ($RUN_LOG, $GLOBAL_PASSWD, $LOCAL_PASSWD, $GLOBAL_GROUP, $LOCAL_GROUP, $LOCAL_PASSWD_OS);
 
 GetOptions('h|help' => \my $helpopt,
            'v|verbose+' => \$verbose,
+           'i|initialize' => \my $initialize,
           ) || die "Incorrect usage, use -h for help.\n";
 
 if ($helpopt) {
@@ -121,6 +122,12 @@ if ($helpopt) {
   print "License: GNU General Public License (GPL) v3.\n\n";
   print "-h | --help : Show this help\n";
   print "-v | --verbose : Enable verbosity\n";
+  print "-i | --initialize : Create /etc/passwd.os\n\n";
+  print "Intialize: When we 'initialize' we copy /etc/passwd to /etc/passwd.os.\n";
+  print "When we run later run for real we refuse to touch any users who exist in\n";
+  print "/etc/passwd.os as we assume these are system accounts.  So when you create\n";
+  print "a new local account you don't want this script to touch, add them to /etc/passwd.os.\n";
+  print "This script never deletes groups so /etc/group.os is not needed.\n";
   exit;
 }
 
@@ -131,15 +138,19 @@ sub log_error {
   # Always returns undef.
   # Usage: log_error("Some error text", "syslog tag")
   # Syslog tag can be anything but NOC-NETCOOL-ALERT and NOC-NETCOOL-TICKET are for Netcool alerts.
-  print STDERR "! $_[0]\n";
+  
+  my $message = shift;
+  my $tag = shift;
+  
+  print STDERR "! $message\n";
   if ($RUN_LOG) {
-    print $RUN_LOG "! $_[0]\n";
+    print $RUN_LOG "! $message\n";
   }
   if ($_[1]) {
-    syslog("LOG_ERR", "$_[1]: $_[0] -- $0.");
+    syslog("LOG_ERR", "$tag: $message -- $0.");
   }
   else {
-    syslog("LOG_ERR", "$_[0] -- $0.");
+    syslog("LOG_ERR", "$message -- $0.");
   }
   return;
 }
@@ -148,15 +159,19 @@ sub log_info {
   # Always returns undef.
   # Usage: log_info("Some log text", "syslog tag")
   # Syslog tag can be anything but NOC-NETCOOL-ALERT and NOC-NETCOOL-TICKET are for Netcool alerts.
-  print STDOUT "$_[0]\n";
+  
+  my $message = shift;
+  my $tag = shift;
+  
+  print STDOUT "$message\n";
   if ($RUN_LOG) {
-    print $RUN_LOG "$_[0]\n";
+    print $RUN_LOG "$message\n";
   }
   if ($_[1]) {
-    syslog("LOG_INFO", "$_[1]: $_[0] -- $0.");
+    syslog("LOG_INFO", "$tag: $message -- $0.");
   }
   else {
-    syslog("LOG_INFO", "$_[0] -- $0.");
+    syslog("LOG_INFO", "$message -- $0.");
   }
   return;
 }
@@ -165,25 +180,58 @@ sub log_info {
 setlogsock("unix");
 openlog($0, "nonul,pid", "user") or die "Failed to open syslog connection.\n";
 
+
+# Intialize (see the help text for information on this)
+if ($initialize) {
+  use File::Copy;
+  
+  # No clobbering
+  if (-f "/etc/passwd.os") {
+    die "File '/etc/passwd.os' already exists, not clobbering.";
+  }
+  
+  # Make the initial copy
+  if (copy("/etc/passwd","/etc/passwd.os")) {
+    print "Success!\n";
+  }
+  else {
+    die "Failed to copy /etc/passwd to /etc/passwd.os: $!";
+  }
+  
+  exit;
+}
+
+
+# Did we initialize yet?
+unless (-f "/etc/passwd.os") {
+  log_error("/etc/passwd.os does not exist, did you run this script with --initialze yet?");
+  die;
+}
+
+
 # Open the files we will need
-if (!open($RUN_LOG, "+>>", "$run_log")) {
+unless (open($RUN_LOG, "+>>", "$run_log")) {
   log_error("Failed to open run log.", "NOC-NETCOOL-TICKET");
   die;
 }
-if (!open($GLOBAL_PASSWD, "<", "/afs/pitt.edu/common/etc/passwd.global")) {
+unless (open($GLOBAL_PASSWD, "<", "/afs/pitt.edu/common/etc/passwd.global")) {
   log_error("Failed to open global password file from AFS.", "NOC-NETCOOL-TICKET");
   die;
 }
-if (!open($LOCAL_PASSWD, "<", "/etc/passwd")) {
+unless (open($LOCAL_PASSWD, "<", "/etc/passwd")) {
   log_error("Failed to open local password file /etc/passwd.", "NOC-NETCOOL-TICKET");
   die;
 }
-if (!open($GLOBAL_GROUP, "<", "/afs/pitt.edu/common/etc/group.global")) {
+unless (open($GLOBAL_GROUP, "<", "/afs/pitt.edu/common/etc/group.global")) {
   log_error("Failed to open global group file from AFS.", "NOC-NETCOOL-TICKET");
   die;
 }
-if (!open($LOCAL_GROUP, "<", "/etc/group")) {
+unless (open($LOCAL_GROUP, "<", "/etc/group")) {
   log_error("Failed to open local group file /etc/group.", "NOC-NETCOOL-TICKET");
+  die;
+}
+unless (open($LOCAL_PASSWD_OS, "<", "/etc/passwd.os")) {
+  log_error("Failed to open local passwd OS file /etc/passwd.os.", "NOC-NETCOOL-TICKET");
   die;
 }
 # Flush writes to the run log so we don't lose error messages
@@ -217,15 +265,22 @@ for my $each_line (<$LOCAL_GROUP>) {
   $local_group{$group} = $each_line;
 }
 
+for my $each_line (<$LOCAL_PASSWD_OS>) {
+  chomp $each_line;
+  my $user = (split(m/:/, $each_line))[0];
+  $skip_users{$user} = 1;
+}
+
 close $GLOBAL_PASSWD;
 close $LOCAL_PASSWD;
 close $GLOBAL_GROUP;
 close $LOCAL_GROUP;
+close $LOCAL_PASSWD_OS;
 
 # Check how much smaller the global file is than the local file
 # This is so that if the global passwd is corrupt we don't blow away the local passwd
 # and break everything (including removing admin users!).
-if ((keys(%local_passwd) - keys(%global_passwd)) >= 3500) {
+if ((keys(%local_passwd) - keys(%global_passwd)) >= 1000) {
   log_error("Too many users to be removed locally, check that passwd.global is intact!", "NOC-NETCOOL-TICKET");
   exit 1;
 }

@@ -1,25 +1,15 @@
 #!/bin/bash
 #Description: Bash script to control startup daemons with chkconfig.
 #Written By: Jeff White of The Univeristy of Pittsburgh (jaw171@pitt.edu)
+# Version: 1.0
+# Last change: Removed kdump from the list of daemons to enable
 
-##### License:
-# This script is released under version three (3) of the GNU General Public License (GPL) of the 
+# License
+# This script is released under version three of the GNU General Public License (GPL) of the 
 # Free Software Foundation (FSF), the text of which is available at http://www.fsf.org/licensing/licenses/gpl-3.0.html.
-# Use of this script implies your acceptance of this license and its terms.
+# Use or modification of this script implies your acceptance of this license and its terms.
 # This is a free script, you are free to change and redistribute it with the terms of the GNU GPL.
-# There is NO WARRANTY, not even for FITNESS FOR A PARTICULAR USE to the extent permitted by U.S. law.
-#####
-
-##### Notes:
-# This was written for an environment where GlusterFS is used for home directories and the directory structure 
-# looks like /home/cssd/jaw171 where /home is where the volume is mounted, cssd is the group name, and jaw171 is the user
-# name.  This script is designed to figure out that it should check the directory quota of /cssd if any of '-u jaw171', 
-# '-g cssd', or '-d /cssd' is given as an arguement.  See the _print_usage function for more info.
-#####
-
-##### Revision history:
-# Version 0.4 - 2011-11-09 - Complete re-write. - Jeff White
-#####
+# There is NO WARRANTY, not even for FITNESS FOR A PARTICULAR USE to the extent permitted by law.
 
 script="${0##*/}"
 chkconfigbin="/sbin/chkconfig"
@@ -66,7 +56,6 @@ dsm_om_connsvc
 dsm_om_shrsvc
 dataeng
 irqbalance
-kdump
 kudzu
 lvm2-monitor
 microcode-ctl
@@ -91,7 +80,6 @@ dsm_om_connsvc
 dsm_om_shrsvc
 dataeng
 irqbalance
-kdump
 lvm2-monitor
 microcode-ctl
 multipathd

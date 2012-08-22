@@ -3,8 +3,8 @@ use warnings;
 use strict;
 # Description: Create a simple report of IPs and their DNS entries
 # Written by: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 1.0
-# Last change: Output a CSV instead of colon-delimited, pretty up the code a bit
+# Version: 1.1
+# Last change: Fixed a bug that caused an exit when a forward lookup failed
 
 # License
 # This script is released under version three of the GNU General Public License (GPL) of the 
@@ -44,7 +44,12 @@ while (defined(my $line = <>)) {
   else {
     $hostname = $line;
     my $ipaddr_binary = gethostbyname($hostname);
-    $ipaddr = inet_ntoa($ipaddr_binary)
+    if ($ipaddr_binary) {
+      $ipaddr = inet_ntoa($ipaddr_binary);
+    }
+    else {
+      $ipaddr = undef;
+    }
   }
 
   # Print the results for this entry

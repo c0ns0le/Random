@@ -1,23 +1,15 @@
 #!/bin/bash
-#shopt -s -o noclobber
-#shopt -s -o nounset
 #Description: Bash script to back up my workstations.
 #Written By: Jeff White (jwhite530@gmail.com)
+# Version: 1.0
+# Last change: Updated for a new hostname, added my SSHFS mount point to the exclude list
 
-##### License
-# This script is released under version three (3) of the GNU General Public License (GPL) of the 
+# License
+# This script is released under version three of the GNU General Public License (GPL) of the 
 # Free Software Foundation (FSF), the text of which is available at http://www.fsf.org/licensing/licenses/gpl-3.0.html.
 # Use or modification of this script implies your acceptance of this license and its terms.
 # This is a free script, you are free to change and redistribute it with the terms of the GNU GPL.
-# There is NO WARRANTY, not even for FITNESS FOR A PARTICULAR USE to the extent permitted by U.S. law.
-#####
-
-##### Revision history
-# 0.8 - 2012-4-18 - Removed the VirtualBox section. - Jeff White
-# 0.7 - 2012-01-20 - Switched the VirtualBox piece to backup to a different box. - Jeff White
-# 0.6 - 2012-01-12 - Added VirtualBox support for a single VM. - Jeff White
-# 0.5 - 2011-12-21 - Re-write of the entire script. - Jeff White
-#####
+# There is NO WARRANTY, not even for FITNESS FOR A PARTICULAR USE to the extent permitted by law.
 
 script=${0##*/}
 bkupdir="/media/Data/Backup"
@@ -65,9 +57,10 @@ tmp
 Data
 truecrypt1
 jaw171.noc.pitt.edu
+/home/jaw171/mnt
 EOF
 
-if [ "$HOSTNAME" = "jaw171-ububox2" ];then
+if [ "$HOSTNAME" = "jaw171.noc.pitt.edu" ];then
   linclient="Jaw171.noc.pitt.edu"
 elif [ "$HOSTNAME" = "jaw171b.noc.pitt.edu" ];then
   linclient="Jaw171b.noc.pitt.edu"

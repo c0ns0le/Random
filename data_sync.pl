@@ -3,8 +3,9 @@ use strict;
 use warnings;
 # Description: Daemon to sync a directory between two systems
 # Written by: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 1.2
-# Last change: Changed the "Status" line in the output to show when the next run will start if it is sleeping
+# Version: 1.3
+# Last change: Added syslog's openlog() and closelog(), changed exit_on_signal() to not remove the pid file
+# unless the current pid is the daemon pid, switched from a named pipe to a regular file
 
 # License
 # This script is released under version three of the GNU General Public License (GPL) of the 
@@ -23,7 +24,7 @@ use File::Path qw(make_path);
 
 my $pidfile = "/var/run/data_sync";
 my $log_file = "/var/log/data_sync.log";
-my $pipe_path = "/tmp/data_sync.pipe";
+my $status_file = "/tmp/data_sync.status";
 
 # Don't change these
 $| = 1;
@@ -42,6 +43,10 @@ if ($helpopt) {
   print "-v | --verbose : Enable verbosity\n";
   exit;
 }
+
+# Prepare for syslog()
+setlogsock("unix");
+openlog($0, "nonul,pid", "user") or warn "Unable to open syslog connection\n";
 
 # Log an error to syslog and STDERR.  Tag for Netcool alerts if asked to.
 sub log_error {
@@ -239,12 +244,6 @@ sub daemon_start {
     die;
   }
   $PIDFILE->autoflush;
-
-
-  # Open a named pipe to use for message passing when we are later asked for our status
-  unless (mkfifo($pipe_path, 0700)) {
-    log_error("Unable to create named pipe '$pipe_path': $!");
-  }
   
   # Daemonize
   unless (chdir '/') {
@@ -322,7 +321,8 @@ sub daemon_start {
 
 # Check that the daemon is running and print the status if it is
 sub daemon_status {
-  # In a scalar context returns undef error, the actual PID if the daemon is running, 0 if it is not running
+  # In a scalar context returns undef on a stale pid file, 
+  # the actual PID if the daemon is running, 0 if it is not running
   # If called with a true arguement, the current status will be printed as well
   # Usage: daemon_status($do_print)
   
@@ -344,20 +344,38 @@ sub daemon_status {
   
  
   if ($do_print) {
-    # Send a USR1 to the daemon process
+
+    # Send a USR1 to the daemon process to write its status to the file
     kill("USR1", $daemon_pid);
-
-    sleep 1;
   
-    my $NAMEDPIPE;
-    unless (open($NAMEDPIPE, "<", $pipe_path)) {
-      log_error("Couldn't open pipe for reading: $!");
-      return;
+    # Wait up to 10 seconds for the daemon to write out its status
+    for (my $waited_second = 0; $waited_second <= 10; $waited_second++) {
+      if (-f $status_file) {
+        last;
+      }
+      else {
+        sleep 1;
+      }
     }
+    
+    unless (-f $status_file) {
+      log_error("Timeout while waiting for the daemon to write out it status to '$status_file'.");
+      return $daemon_pid;
+    }
+    
+    my $STATUS_FILE;
+    unless (open($STATUS_FILE, "<", $status_file)) {
+      log_error("Couldn't open status file '$status_file' for reading: $!");
+      return $daemon_pid;
+    }
+    
+    print <$STATUS_FILE>;
 
-    print <$NAMEDPIPE>;
-
-    close $NAMEDPIPE;
+    close $STATUS_FILE;
+    
+    unless (unlink($status_file)) {
+      log_error("Unable to remove status file '$status_file'");
+    }
   }
 
   return $daemon_pid;
@@ -424,45 +442,56 @@ sub exit_on_signal {
   # Always exists without returning
   # Usage: exit_on_signal()
   
+  # Don't remove our files unless we are the daemon
+  unless ($$ == get_pid()) {
+    exit;
+  }
+  
   print "Caught signal, exiting\n" if ($verbose);
   
   unless (unlink($pidfile)) {
     log_error("Unable to remove '$pidfile'.");
   }
   
-  unless (unlink($pipe_path)) {
-    log_error("Unable to remove '$pipe_path'.");
-  }
-  
   exit;
 }
 
 
-# Handle the USR1 signal by printing our status to the pipe
-sub print_status {
-  # In a scalar context, returns undef on error (can't open pipe) otherwise returns 1
+# Handle the USR1 signal by printing our status to the $status_file
+sub print_status_on_signal {
+  # In a scalar context, returns undef on error otherwise returns 1
   # Usage: print_status()
   
-  my $NAMEDPIPE;
-  unless (open($NAMEDPIPE, ">", $pipe_path)) {
-    log_error("Couldn't open pipe for writing: $!");
+  # We print to a temporary status file then move it to the real file name when we are done
+  # This prevents a race condition where the process reading from the file reads it when we were
+  # only half done with writing our status
+  
+  my $STATUS_FILE;
+  unless (open($STATUS_FILE, "+>", ${status_file}.$$)) {
+    log_error("Unable to open status file '${status_file}.$$' for writing: $!");
     return;
   }
   
-  print $NAMEDPIPE "\n";
+  print $STATUS_FILE "\n";
   for my $stat (sort(keys(%run_stats))){
-    print $NAMEDPIPE "$stat: $run_stats{$stat}\n";
+    print $STATUS_FILE "$stat: $run_stats{$stat}\n";
   }
-  print $NAMEDPIPE "\n";
+  print $STATUS_FILE "\n";
   
-  close $NAMEDPIPE;
+  close $STATUS_FILE;
+  
+  unless (rename(${status_file}.$$, $status_file)) {
+    log_error("Unable to rename status file '${status_file}.$$' --> '$status_file': $!");
+    return;
+  }
+  
   return 1;
 
 }
 
 
 # Signals we will trap
-$SIG{'USR1'} = 'print_status';
+$SIG{'USR1'} = 'print_status_on_signal';
 $SIG{'TERM'} = 'exit_on_signal';
 $SIG{'INT'} = 'exit_on_signal';
 
@@ -505,3 +534,5 @@ else {
   log_error("Invalid usage.  See -h for help.");
   exit 1;
 }
+
+closelog;

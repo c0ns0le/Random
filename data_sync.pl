@@ -3,9 +3,8 @@ use strict;
 use warnings;
 # Description: Daemon to sync a directory between two systems
 # Written by: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 1.3
-# Last change: Added syslog's openlog() and closelog(), changed exit_on_signal() to not remove the pid file
-# unless the current pid is the daemon pid, switched from a named pipe to a regular file
+# Version: 1.4
+# Last change: Ignore rsync's exit status 24 (vanished source files)
 
 # License
 # This script is released under version three of the GNU General Public License (GPL) of the 
@@ -173,7 +172,7 @@ sub do_stuff {
       # Was the rsync a success?
       my $status = $rsync_obj->status;
       
-      if ($status != 0) {
+      if (($status != 0) and ($status != 24)) { # 24 == vanished source files
         log_error("Error '$status' during transfer: '$source/$group_dir/$user_dir' => '$dest/$group_dir/'", "NOC-NETCOOL-TICKET");
         my $ref_to_errors = $rsync_obj->err;
         log_error(@$ref_to_errors);

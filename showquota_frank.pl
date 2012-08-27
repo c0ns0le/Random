@@ -3,8 +3,8 @@ use strict;
 use warnings;
 # Description: Display the disk quotas for the current user and group
 # Written by: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 1
-# Last change: Initial version
+# Version: 1.1
+# Last change: Fixed a bug where '*' is included when a quota is exceeded causing a fatal error when math is done on the quota usage
 
 # License
 # This script is released under version three of the GNU General Public License (GPL) of the 
@@ -68,6 +68,7 @@ print "Getting quota for user '$user' and group '$group'...\n" if ($verbose);
 
   # If we were able to get the quota...
   if (($quota_used) and ($quota_hard)) {
+    $quota_used =~ s/\*//; # If the user is over quota we need to remove this from the output
     my $home_free = sprintf("%.2f", ($quota_hard - $quota_used) / 1024 / 1024);
     $quota_used = sprintf("%.2f", $quota_used / 1024 / 1024);
     $quota_hard = sprintf("%.2f", $quota_hard / 1024 / 1024 );
@@ -97,6 +98,7 @@ print "Getting quota for user '$user' and group '$group'...\n" if ($verbose);
 
   # If we were able to get the quota...
   if (($quota_used) and ($quota_hard)) {
+    $quota_used =~ s/\*//; # If the user is over quota we need to remove this from the output
     my $home_free = sprintf("%.2f", ($quota_hard - $quota_used) / 1024 / 1024);
     $quota_used = sprintf("%.2f", $quota_used / 1024 / 1024);
     $quota_hard = sprintf("%.2f", $quota_hard / 1024 / 1024 );

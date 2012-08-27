@@ -1,24 +1,18 @@
 #!/bin/bash
 shopt -s -o noclobber
 shopt -s -o nounset
+# Name: backup_chong.sh
+# Description: Back up certain datastores of the Lillian Chong cluster.
+# Written by: Jeff White (jaw171@pitt.edu) of the University of Pittsburgh
+# Version: 1
+# Last change: Ignore rsync's exit status 24 (vanished source files)
 
-#Name: backup_chong.sh
-#Description: Bash script to backup up certain datastores of the Lillian Chong cluster.
-#Written by: Jeff White (jaw171@pitt.edu) of the University of Pittsburgh
-
-##### License
-# This script is released under version three (3) of the GNU General Public License (GPL) of the 
+# License
+# This script is released under version three of the GNU General Public License (GPL) of the 
 # Free Software Foundation (FSF), the text of which is available at http://www.fsf.org/licensing/licenses/gpl-3.0.html.
 # Use or modification of this script implies your acceptance of this license and its terms.
 # This is a free script, you are free to change and redistribute it with the terms of the GNU GPL.
-# There is NO WARRANTY, not even for FITNESS FOR A PARTICULAR USE to the extent permitted by U.S. law.
-#####
-
-##### Revision history
-#
-# 0.1 - 2012-03-15 - Initial version. - Jeff White
-#
-#####
+# There is NO WARRANTY, not even for FITNESS FOR A PARTICULAR USE to the extent permitted by law.
 
 script=${0##*/}
 logdir="/var/log/backup_chong"
@@ -306,16 +300,32 @@ echo "$($time) - Source type of this run is $sourcetype." | $teebin -a $log
 
 case "$sourcetype" in
   home)
-    rsync -a --delete-before --stats /raid/home /share/backups >>$log || _printerr "ERROR - $LINENO - rsync backup of /raid/home failed."
+    rsync -a --delete-before --stats /raid/home /share/backups >>$log
+    status=$?
+    if [ $status != 0 -a $status != 24 ];then
+      _printerr "ERROR - $LINENO - rsync backup of /raid/home failed."
+    fi
   ;;
   archive)
-    rsync -a --delete-before --stats --progress /raid/archive /share/backups/ >>$log || _printerr "ERROR - $LINENO - rsync backup of /raid/archive failed."
+    rsync -a --delete-before --stats --progress /raid/archive /share/backups/ >>$log
+    status=$?
+    if [ $status != 0 -a $status != 24 ];then
+      _printerr "ERROR - $LINENO - rsync backup of /raid/archive failed."
+    fi
   ;;
   apps)
-    rsync -a --delete-before --stats /export/apps /share/backups/ >>$log || _printerr "ERROR - $LINENO - rsync backup of /raid/apps failed."
+    rsync -a --delete-before --stats /export/apps /share/backups/ >>$log
+    status=$?
+    if [ $status != 0 -a $status != 24 ];then
+      _printerr "ERROR - $LINENO - rsync backup of /raid/apps failed."
+    fi
   ;;
   ltc1-root)
-    rsync -a --delete-before --one-file-system --stats / /share/backups/ltc1-root/ >>$log || _printerr "ERROR - $LINENO - rsync backup of ltc1-root failed."
+    rsync -a --delete-before --one-file-system --stats / /share/backups/ltc1-root/ >>$log
+    status=$?
+    if [ $status != 0 -a $status != 24 ];then
+      _printerr "ERROR - $LINENO - rsync backup of ltc1-root failed."
+    fi
   ;;
   *)
     sourcetypefail="1"

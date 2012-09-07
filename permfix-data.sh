@@ -1,24 +1,17 @@
 #!/bin/bash
-#Description: Bash script to fix permissons on my datastore
-#Written By: Jeff White (jwhite530@gmail.com)
+# Description: Fix permissons on my datastore
+# Written by: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
+# Version: 1.0
+# Last change: Updated for new directory names
 
-##### License
-# This script is released under version three (3) of the GNU General Public License (GPL) of the 
+# License
+# This script is released under version three of the GNU General Public License (GPL) of the 
 # Free Software Foundation (FSF), the text of which is available at http://www.fsf.org/licensing/licenses/gpl-3.0.html.
 # Use or modification of this script implies your acceptance of this license and its terms.
 # This is a free script, you are free to change and redistribute it with the terms of the GNU GPL.
-# There is NO WARRANTY, not even for FITNESS FOR A PARTICULAR USE to the extent permitted by U.S. law.
-#####
+# There is NO WARRANTY, not even for FITNESS FOR A PARTICULAR USE to the extent permitted by law.
 
-##### Revision history
-#
-# 0.5 - 2012-03-11 - Removed DCplusplus directory. - Jeff White
-# 0.4 - 2012-02-12 - Removed Torrent_rtorrent directory. - Jeff White
-# 0.3 - 2011-12-13 - Added '/media/VM' section. - Jeff White
-#
-#####
-
-publicdirs=( "TV" "Frets on Fire" "Movie" "Music" "Video Game Emulators" "Ebooks" "Education and Certifications" "Video" "Scripts" )
+publicdirs=( "TV" "Frets on Fire" "Movie" "Music" "Video Game Emulators" "Ebooks" "Education and Certifications" "Video" "Code" )
 
 privatedirs=( "Apps" "Operating Systems" "Pictures" "Stuffs" "Temp" "VHS" "Torrent_Deluge" )
 
@@ -43,7 +36,7 @@ for eachprivatedir in "${privatedirs[@]}";do
   sudo chown -R white:myself "$prefixdir/$eachprivatedir"
 done
 
-find $prefixdir/Scripts -type f \! -perm 755 -exec chmod 755 "{}" \;
+find $prefixdir/Code -type f \! -perm 755 -exec chmod 755 "{}" \;
 
 sudo chown -R white:myself /media/VM
 find /media/VM -type d \! -perm 770 -exec chmod 770 "{}" \;

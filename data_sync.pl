@@ -3,8 +3,11 @@ use strict;
 use warnings;
 # Description: Daemon to sync a directory between two systems
 # Written by: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 1.4
-# Last change: Ignore rsync's exit status 24 (vanished source files)
+# Version: 1.5
+# Last change: Clear some stats info when sleeping between runs, transfer files found in the globs without counting 
+# them as users or groups, don't syslog an error when 'status' is checked on a dead daemon or when improperly invoked,
+# added a sanity check at the start of each run, remove datetime(), add timestamp to all log messages, pretty-up
+# the status output.
 
 # License
 # This script is released under version three of the GNU General Public License (GPL) of the 
@@ -50,13 +53,13 @@ openlog($0, "nonul,pid", "user") or warn "Unable to open syslog connection\n";
 # Log an error to syslog and STDERR.  Tag for Netcool alerts if asked to.
 sub log_error {
   # Returns true if the print worked.
-  # Usage: log_error("Some error text", "syslog tag")
+  # Usage: log_error("Some error text", "syslog tag") # Scalar
   # Syslog tag can be anything but NOC-NETCOOL-ALERT and NOC-NETCOOL-TICKET are for Netcool alerts.
 
   my $message = shift;
   my $tag = shift;
 
-  print STDERR "! $message\n";
+  print STDERR "! ", scalar(localtime(time)), " : $message\n";
   if ($tag) {
     syslog("LOG_ERR", "$tag: $message -- $0.");
   }
@@ -69,24 +72,36 @@ sub log_error {
 # Log a message to syslog and STDOUT.  Tag for Netcool alerts if asked to.
 sub log_info {
   # Returns true if the print worked.
-  # Usage: log_info("Some log text")
+  # Usage: log_info("Some log text") # Scalar
 
   my $message = shift;
 
-  print STDOUT "$message\n";
+  print STDOUT scalar(localtime(time)), " : $message\n";
   # This script sends STDOUT to the log when it forks so we don't really need this sub...
 }
 
-
-# Get a pretty datetime
-sub datetime {
-  # Returns a scalar string with a pretty datetime:
-  # Usage: datetime()
+# Check sanity
+sub check_sanity {
+  # Returns true is successful, commits suicide on any failure
+  # Usage: check_sanity()
   
-  my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime(time);
-  $year += 1900;
+  # Open /proc/mounts and ensure the source and destination are mounted
+  my $MOUNTS;
+  unless (open($MOUNTS, "<", "/proc/mounts")) {
+    log_error("Failed to open /proc/mounts, can't check sanity.");
+    daemon_stop();
+    die "Sanity check failed but could not exit cleanly!";
+  }
+  my @mounts = <$MOUNTS>;
+  # This is ugly as it has my mounts hard-coded ... I'll fix it later
+  unless (grep(m|/data|, @mounts) and grep(m|/mnt/home|, @mounts)) {
+    log_error("Sanity check failed: Either source mount '/data' or destination mount '/mnt/home' is not mounted.");
+    daemon_stop();
+    die "Sanity check failed but could not exit cleanly!";
+  }
   
-  return "$year-$mon-$mday $hour:$min:$sec";
+  log_info("Sanity check passed, starting run.");
+  return 1;
 }
 
 
@@ -95,19 +110,19 @@ sub do_stuff {
   # Returns true, always
   # Usage: do_stuff()
 
-  my $source = "/home"; # Without the trailing slash
-  my $dest = "/data/home"; # Without the trailing slash
+  my $source = "/data/home"; # Without the trailing slash
+  my $dest = "/mnt/home"; # Without the trailing slash
   
-  unless (-d $dest) {
-    make_path($dest, {
-      mode => 0775,
-    });
+  # Die if we are truely insane
+  unless (check_sanity()) {
+    log_error("Sanity check failed but could not exit cleanly!");
+    die;
   }
   
   my $rsync_obj = File::Rsync->new({
     archive => 1,
     inplace => 1,
-    del => 1,
+    del => 0,
   });
 
   # Get a array of group dirs
@@ -118,8 +133,26 @@ sub do_stuff {
       $each_fs_object =~ s|^\Q$source/\E||;
       push(@group_dirs, $each_fs_object);
     }
+    # If we ran into something that is not a a directory, just transer it now.
+    # We shouldn't have files inside of the source directory but we need to handle them just in case
     else {
-      log_info("'$each_fs_object' is not a directory, skipping.");
+      $each_fs_object =~ s|^\Q$source/\E||;
+      
+      # Do the rsync
+      $rsync_obj->exec({
+        src => "$source/$each_fs_object",
+        dest => "$dest/",
+      });
+      
+      # Was the rsync a success?
+      my $status = $rsync_obj->status;
+      
+      if (($status != 0) and ($status != 24)) { # 24 == vanished source files
+        my $time = scalar(localtime(time));
+        log_error("Error '$status' during transfer: '$source/$each_fs_object' => '$dest/'", "NOC-NETCOOL-TICKET");
+        my $ref_to_errors = $rsync_obj->err;
+        log_error(@$ref_to_errors);
+      }
     }
     
   }
@@ -132,10 +165,10 @@ sub do_stuff {
   for my $group_dir (@group_dirs) {
 
     $run_stats{"Current group start epoch"} = time();
-    $run_stats{"Current group start datetime"} = datetime();
+    $run_stats{"Current group start"} = scalar(localtime(time));
     $run_stats{"Current group"} = scalar($group_dir);
     $run_stats{"Groups to go"}--;
-    print "Working on group directory '$group_dir': ", datetime(), "\n" if ($verbose);
+    print "Working on group directory '$group_dir': ", scalar(localtime(time)), "\n" if ($verbose);
         
     # Create an array of each user dir in the current group dir
     my @user_dirs;
@@ -145,23 +178,41 @@ sub do_stuff {
         $each_fs_object =~ s|^\Q$source/$group_dir/\E||;
         push(@user_dirs, $each_fs_object);
       }
+      # If we ran into something that is not a a directory, just transer it now.
+      # We shouldn't have files inside of a group directory but we need to handle them just in case
       else {
-        log_info("'$each_fs_object' is not a directory, skipping.");
+        $each_fs_object =~ s|^\Q$source/$group_dir/\E||;
+        
+        # Do the rsync
+        $rsync_obj->exec({
+          src => "$source/$group_dir/$each_fs_object",
+          dest => "$dest/$group_dir/",
+        });
+        
+        # Was the rsync a success?
+        my $status = $rsync_obj->status;
+        
+        if (($status != 0) and ($status != 24)) { # 24 == vanished source files
+          my $time = scalar(localtime(time));
+          log_error("Error '$status' during transfer: '$source/$group_dir/$each_fs_object' => '$dest/$group_dir/'", "NOC-NETCOOL-TICKET");
+          my $ref_to_errors = $rsync_obj->err;
+          log_error(@$ref_to_errors);
+        }
       }
 
     }
 
-    $run_stats{"Num users in current group"} = scalar(@user_dirs);
-    $run_stats{"Num users in current group to go"} = $run_stats{"Num users in current group"};
-    print "Found $run_stats{'Num users in current group'} user directories: @user_dirs\n" if ($verbose);
+    $run_stats{"Users in current group"} = scalar(@user_dirs);
+    $run_stats{"Users in current group to go"} = $run_stats{"Users in current group"};
+    print "Found $run_stats{'Users in current group'} user directories: @user_dirs\n" if ($verbose);
     
     for my $user_dir (@user_dirs) {
 
       $run_stats{"Current user start epoch"} = time();
-      $run_stats{"Current user start datetime"} = datetime();
+      $run_stats{"Current user start"} = scalar(localtime(time));
       $run_stats{"Current user"} = scalar($user_dir);
-      $run_stats{"Num users in current group to go"}--;
-      print "Working on user directory '$group_dir/$user_dir': ", datetime(), "\n" if ($verbose);
+      $run_stats{"Users in current group to go"}--;
+      print "Working on user directory '$group_dir/$user_dir': ", scalar(localtime(time)), "\n" if ($verbose);
       
       # Do the rsync
       $rsync_obj->exec({
@@ -173,11 +224,13 @@ sub do_stuff {
       my $status = $rsync_obj->status;
       
       if (($status != 0) and ($status != 24)) { # 24 == vanished source files
+        my $time = scalar(localtime(time));
         log_error("Error '$status' during transfer: '$source/$group_dir/$user_dir' => '$dest/$group_dir/'", "NOC-NETCOOL-TICKET");
         my $ref_to_errors = $rsync_obj->err;
         log_error(@$ref_to_errors);
       }
       else {
+        my $time = scalar(localtime(time));
         log_info("Success: '$source/$group_dir/$user_dir' => '$dest/$group_dir/'");
       }
       
@@ -285,14 +338,27 @@ sub daemon_start {
   while (1) {
     $run_stats{"Run"}++;
     $run_stats{"Run start epoch"} = time();
-    $run_stats{"Run start datetime"} = datetime();
+    $run_stats{"Run start"} = scalar(localtime(time));
     $run_stats{"Status"} = "Running";
-    print "Starting run number '$run_stats{'Run'}': $run_stats{'Run start datetime'}\n";
+    my $time = scalar(localtime(time));
+    log_info("Starting run number '$run_stats{'Run'}'");
     
     do_stuff;
     
     $run_stats{"Last run length in seconds"} = time() - $run_stats{"Run start epoch"};
     print "Total time for this run: $run_stats{'Last run length in seconds'} seconds.\n";
+    
+    delete $run_stats{"Current group"};
+    delete $run_stats{"Current group start"};
+    delete $run_stats{"Current group start epoch"};
+    delete $run_stats{"Current user"};
+    delete $run_stats{"Current user start"};
+    delete $run_stats{"Current user start epoch"};
+    delete $run_stats{"Groups to go"};
+    delete $run_stats{"Users in current group"};
+    delete $run_stats{"Users in current group to go"};
+    delete $run_stats{"Run start"};
+    delete $run_stats{"Run start epoch"};
     
     # Has it been 24 hours since we started a run?
     if ($run_stats{"Last run length in seconds"} >= 86400) {
@@ -300,7 +366,7 @@ sub daemon_start {
     }
     else {
       my $run_sleep_second = 86400 - $run_stats{"Last run length in seconds"};
-      my $sleep_start_datetime = datetime();
+      my $sleep_start_datetime = scalar(localtime(time));
       my $waketime_epoch = $run_sleep_second + time();
       my $waketime_datetime = scalar(localtime($waketime_epoch));
 
@@ -311,9 +377,6 @@ sub daemon_start {
       # our status) it wakes us up prematurely!
       system("/bin/sleep", $run_sleep_second);
     }
-    
-    
-    sleep 60;
   }
 
 }
@@ -329,7 +392,7 @@ sub daemon_status {
 
   # Does the PID file exist?
   unless (-f "$pidfile") {
-    log_error("Stopped or PID file not found.");
+    print "Stopped or PID file not found.\n";
     return 0;
   }
 
@@ -497,7 +560,7 @@ $SIG{'INT'} = 'exit_on_signal';
 
 # How were we called?
 if ((!$ARGV[0]) or ($ARGV[1])) {
-  log_error("Invalid usage.  See -h for help.");
+  print "Invalid usage.  See -h for help.\n";
   exit 1;
 }
 
@@ -530,7 +593,7 @@ elsif ($ARGV[0] eq "status") {
 }
 
 else {
-  log_error("Invalid usage.  See -h for help.");
+  print "Invalid usage.  See -h for help.\n";
   exit 1;
 }
 

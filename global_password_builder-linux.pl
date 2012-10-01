@@ -3,8 +3,8 @@ use strict;
 use warnings;
 # Description: Creates a new global /etc/passwd, /etc/shadow, and /etc/group on GNU+Linux (tested on RHEL)
 # Written by: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 3.2
-# Last change: Added an "initialize" function to create a passwd.os on the first run, pretty'd up some of the code
+# Version: 3.3
+# Last change: Changed the user removal threshold to 3500
 
 # License
 # This script is released under version three of the GNU General Public License (GPL) of the 
@@ -280,7 +280,7 @@ close $LOCAL_PASSWD_OS;
 # Check how much smaller the global file is than the local file
 # This is so that if the global passwd is corrupt we don't blow away the local passwd
 # and break everything (including removing admin users!).
-if ((keys(%local_passwd) - keys(%global_passwd)) >= 1000) {
+if ((keys(%local_passwd) - keys(%global_passwd)) >= 3500) {
   log_error("Too many users to be removed locally, check that passwd.global is intact!", "NOC-NETCOOL-TICKET");
   exit 1;
 }

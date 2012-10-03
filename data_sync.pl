@@ -3,11 +3,9 @@ use strict;
 use warnings;
 # Description: Daemon to sync a directory between two systems
 # Written by: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 1.5
-# Last change: Clear some stats info when sleeping between runs, transfer files found in the globs without counting 
-# them as users or groups, don't syslog an error when 'status' is checked on a dead daemon or when improperly invoked,
-# added a sanity check at the start of each run, remove datetime(), add timestamp to all log messages, pretty-up
-# the status output.
+# Version: 1.6
+# Last change: Error text from rsync is now logged as separate lines, rsync failure due to user's being over quota
+# are now ignored.
 
 # License
 # This script is released under version three of the GNU General Public License (GPL) of the 
@@ -148,10 +146,16 @@ sub do_stuff {
       my $status = $rsync_obj->status;
       
       if (($status != 0) and ($status != 24)) { # 24 == vanished source files
-        my $time = scalar(localtime(time));
-        log_error("Error '$status' during transfer: '$source/$each_fs_object' => '$dest/'", "NOC-NETCOOL-TICKET");
         my $ref_to_errors = $rsync_obj->err;
-        log_error(@$ref_to_errors);
+        
+        # Skip errors due to quota being exceeded.
+        unless (grep(m/Disk quota exceeded/, @$ref_to_errors)) {
+          my $time = scalar(localtime(time));
+          log_error("Error '$status' during transfer: '$source/$each_fs_object' => '$dest/'", "NOC-NETCOOL-TICKET");
+          foreach my $error_line (@$ref_to_errors) {
+            log_error($error_line);
+          }
+        }
       }
     }
     
@@ -193,10 +197,16 @@ sub do_stuff {
         my $status = $rsync_obj->status;
         
         if (($status != 0) and ($status != 24)) { # 24 == vanished source files
-          my $time = scalar(localtime(time));
-          log_error("Error '$status' during transfer: '$source/$group_dir/$each_fs_object' => '$dest/$group_dir/'", "NOC-NETCOOL-TICKET");
           my $ref_to_errors = $rsync_obj->err;
-          log_error(@$ref_to_errors);
+        
+          # Skip errors due to quota being exceeded.
+          unless (grep(m/Disk quota exceeded/, @$ref_to_errors)) {
+            my $time = scalar(localtime(time));
+            log_error("Error '$status' during transfer: '$source/$group_dir/$each_fs_object' => '$dest/$group_dir/'", "NOC-NETCOOL-TICKET");
+            foreach my $error_line (@$ref_to_errors) {
+              log_error($error_line);
+            }
+          }
         }
       }
 
@@ -224,10 +234,16 @@ sub do_stuff {
       my $status = $rsync_obj->status;
       
       if (($status != 0) and ($status != 24)) { # 24 == vanished source files
-        my $time = scalar(localtime(time));
-        log_error("Error '$status' during transfer: '$source/$group_dir/$user_dir' => '$dest/$group_dir/'", "NOC-NETCOOL-TICKET");
         my $ref_to_errors = $rsync_obj->err;
-        log_error(@$ref_to_errors);
+        
+        # Skip errors due to quota being exceeded.
+        unless (grep(m/Disk quota exceeded/, @$ref_to_errors)) {
+          my $time = scalar(localtime(time));
+          log_error("Error '$status' during transfer: '$source/$group_dir/$user_dir' => '$dest/$group_dir/'", "NOC-NETCOOL-TICKET");
+          foreach my $error_line (@$ref_to_errors) {
+            log_error($error_line);
+          }
+        }
       }
       else {
         my $time = scalar(localtime(time));

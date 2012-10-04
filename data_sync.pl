@@ -3,9 +3,8 @@ use strict;
 use warnings;
 # Description: Daemon to sync a directory between two systems
 # Written by: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 1.6
-# Last change: Error text from rsync is now logged as separate lines, rsync failure due to user's being over quota
-# are now ignored.
+# Version: 1.7
+# Last change: Removed time states that were not being used.
 
 # License
 # This script is released under version three of the GNU General Public License (GPL) of the 
@@ -150,7 +149,6 @@ sub do_stuff {
         
         # Skip errors due to quota being exceeded.
         unless (grep(m/Disk quota exceeded/, @$ref_to_errors)) {
-          my $time = scalar(localtime(time));
           log_error("Error '$status' during transfer: '$source/$each_fs_object' => '$dest/'", "NOC-NETCOOL-TICKET");
           foreach my $error_line (@$ref_to_errors) {
             log_error($error_line);
@@ -201,7 +199,6 @@ sub do_stuff {
         
           # Skip errors due to quota being exceeded.
           unless (grep(m/Disk quota exceeded/, @$ref_to_errors)) {
-            my $time = scalar(localtime(time));
             log_error("Error '$status' during transfer: '$source/$group_dir/$each_fs_object' => '$dest/$group_dir/'", "NOC-NETCOOL-TICKET");
             foreach my $error_line (@$ref_to_errors) {
               log_error($error_line);
@@ -238,7 +235,6 @@ sub do_stuff {
         
         # Skip errors due to quota being exceeded.
         unless (grep(m/Disk quota exceeded/, @$ref_to_errors)) {
-          my $time = scalar(localtime(time));
           log_error("Error '$status' during transfer: '$source/$group_dir/$user_dir' => '$dest/$group_dir/'", "NOC-NETCOOL-TICKET");
           foreach my $error_line (@$ref_to_errors) {
             log_error($error_line);

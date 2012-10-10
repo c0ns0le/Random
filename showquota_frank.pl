@@ -3,8 +3,8 @@ use strict;
 use warnings;
 # Description: Display the disk quotas for the current user and group
 # Written by: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 1.1
-# Last change: Fixed a bug where '*' is included when a quota is exceeded causing a fatal error when math is done on the quota usage
+# Version: 1.2
+# Last change: Changed to handle soft and hard quotas correctly and show grace time on exceeded quotas
 
 # License
 # This script is released under version three of the GNU General Public License (GPL) of the 
@@ -16,6 +16,9 @@ use warnings;
 use Getopt::Long;
 Getopt::Long::Configure("bundling");
 use Sys::Syslog qw(:DEFAULT setlogsock);
+use Term::ANSIColor qw(:constants);
+$Term::ANSIColor::AUTORESET = 1;
+use POSIX qw(isdigit);
 
 my %whitelisted_users = (
 #   "kimwong" => "Kim Wong, SaM admin",
@@ -64,16 +67,26 @@ print "Getting quota for user '$user' and group '$group'...\n" if ($verbose);
     next;
   }
   
-  my ($quota_used, $home_soft, $quota_hard) = (split(m/\s+/, $quota_line))[1,2,3];
+  my ($quota_used, $quota_soft, $quota_hard, $grace_time) = (split(m/\s+/, $quota_line))[1,2,3,4];
 
   # If we were able to get the quota...
   if (($quota_used) and ($quota_hard)) {
     $quota_used =~ s/\*//; # If the user is over quota we need to remove this from the output
-    my $home_free = sprintf("%.2f", ($quota_hard - $quota_used) / 1024 / 1024);
+    my $quota_free_soft = sprintf("%.2f", ($quota_soft - $quota_used) / 1024 / 1024);
+    my $quota_free_hard = sprintf("%.2f", ($quota_hard - $quota_used) / 1024 / 1024);
     $quota_used = sprintf("%.2f", $quota_used / 1024 / 1024);
-    $quota_hard = sprintf("%.2f", $quota_hard / 1024 / 1024 );
+    $quota_soft = sprintf("%.2f", $quota_soft / 1024 / 1024 );
 
-    print "/home: ${quota_used}GB used of ${quota_hard}GB limit (${home_free}GB free) for user $user\n\n"
+    # If the user is over quota also show the hard limit and grace time
+    # This first test is needed as we split the wuota output on whitespace and a non-existant grace period
+    # in the output means we actually captured the number of inodes instead
+    if ((!isdigit $grace_time) and ($quota_used >= $quota_free_soft)) {
+      print "/home: ${quota_used}GB used of ${quota_soft}GB limit (${quota_free_soft}GB free) for user $user\n";
+      print BOLD RED "${quota_free_hard}GB until hard limit, $grace_time remaining of grace time\n\n";
+    }
+    else {
+      print "/home: ${quota_used}GB used of ${quota_soft}GB limit (${quota_free_soft}GB free) for user $user\n\n"
+    }
   }
   else {
     print "Unable to find quota of /home for $user\n\n";
@@ -94,23 +107,29 @@ print "Getting quota for user '$user' and group '$group'...\n" if ($verbose);
     next;
   }
   
-  my ($quota_used, $quota_hard) = (split(m/\s+/, $quota_line))[1,3];
+  my ($quota_used, $quota_soft, $quota_hard, $grace_time) = (split(m/\s+/, $quota_line))[1,2,3,4];
 
   # If we were able to get the quota...
   if (($quota_used) and ($quota_hard)) {
     $quota_used =~ s/\*//; # If the user is over quota we need to remove this from the output
-    my $home_free = sprintf("%.2f", ($quota_hard - $quota_used) / 1024 / 1024);
+    my $quota_free_soft = sprintf("%.2f", ($quota_soft - $quota_used) / 1024 / 1024);
+    my $quota_free_hard = sprintf("%.2f", ($quota_hard - $quota_used) / 1024 / 1024);
     $quota_used = sprintf("%.2f", $quota_used / 1024 / 1024);
-    $quota_hard = sprintf("%.2f", $quota_hard / 1024 / 1024 );
+    $quota_soft = sprintf("%.2f", $quota_soft / 1024 / 1024 );
 
-    print "/home: ${quota_used}GB used of ${quota_hard}GB limit (${home_free}GB free) for group $group\n\n"
+    # If the group is over quota, also show the grace time
+    if ((!isdigit $grace_time) and ($quota_used >= $quota_free_soft)) {
+      print "/home: ${quota_used}GB used of ${quota_soft}GB limit (${quota_free_soft}GB free) for group $group\n";
+      print BOLD RED "${quota_free_hard}GB until hard limit, $grace_time remaining of grace time\n\n";
+    }
+    else {
+      print "/home: ${quota_used}GB used of ${quota_soft}GB limit (${quota_free_soft}GB free) for group $group\n\n";
+    }
   }
   else {
     print "Unable to find quota of /home for $group\n\n";
   }
 }
-
-
 
 # Get the /gscratch user quota
 {

@@ -1,8 +1,8 @@
 #!/usr/bin/perl
-# Description: Display the size and name of files and directories in the current working directory
+# Description: "Display the size and name of files and directories in a given directory
 # Written By: Jeff White (jwhite530@gmail.com)
-# Version: 1
-# Last change: Initial version
+# Version: 1.1
+# Last change: Renamed from cwd_sizer.pl, now accepts a directory as an arg
 
 ##### License
 # This software is released under version three (3) of the GNU General Public License (GPL) of the 
@@ -15,6 +15,8 @@
 use strict;
 use warnings;
 use Getopt::Long;
+Getopt::Long::Configure("bundling");
+use Cwd;
 
 GetOptions('h|help' => \my $helpopt,
            'b|bytes' => \my $bytes,
@@ -23,12 +25,23 @@ GetOptions('h|help' => \my $helpopt,
           ) || die "Incorrect usage, use -h for help.\n";
 
 if ($helpopt) {
-  print "Display the size and name of files and directories in the current working directory\n";
+  print "Display the size and name of files and directories in a given directory\n";
+  print "If a directory is not given as an argument CWD will be used\n";
+  print "Usage: $0 /var/log\n";
   print "-h | --help : Show this help\n";
   print "-b | --bytes : Display size in bytes instead of human-readable\n";
   print "-s | --size : Sort output by size\n";
   print "-r | --reverse : Reverse the sort\n";
   exit;
+}
+
+
+my $directory_to_check;
+if (($ARGV[0]) and (-d $ARGV[0])) {
+  $directory_to_check = $ARGV[0];
+}
+else {
+  $directory_to_check = getcwd;
 }
 
 
@@ -61,7 +74,7 @@ my %fs_objects_size if ($sort_size);
 
 
 # Loop through every filesystem object in the CWD and add it to the hash
-for my $fs_object (glob("*")) {
+for my $fs_object (glob("$directory_to_check/*")) {
 
   # Is it a regular file or a directory?
   if (-f $fs_object) {

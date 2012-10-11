@@ -1,0 +1,136 @@
+#!/usr/bin/perl
+# Description: Display the status of compute nodes via either plain text or HTML
+# Written By: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
+# Version: 1
+# Last change: Initial version
+
+##### License
+# This script is released under version three (3) of the GNU General Public License (GPL) of the 
+# Free Software Foundation (FSF), the text of which is available at http://www.fsf.org/licensing/licenses/gpl-3.0.html.
+# Use or modification of this script implies your acceptance of this license and its terms.
+# This is a free script, you are free to change and redistribute it with the terms of the GNU GPL.
+# There is NO WARRANTY, not even for FITNESS FOR A PARTICULAR USE to the extent permitted by U.S. law.
+#####
+
+use strict;
+use warnings;
+use Getopt::Long;
+use Storable;
+
+GetOptions('h|help' => \my $helpopt,
+	   't|text' => \my $text_mode,
+          ) || die "Incorrect usage, use -h for help.\n";
+
+if ($helpopt) {
+  print "Display the status of compute nodes via either plain text or HTML\n";
+  print "-h | --help : Show this help\n";
+  print "-t | --text : output plain text instead of HTML\n";
+  exit;
+}
+
+
+# Pull in the node state file
+unless (-f "/tmp/node_status.dump") {
+  print STDERR "Failed to find node state file '/tmp/node_status.dump'\n";
+}
+
+my %node_states = %{retrieve("/tmp/node_status.dump")};
+# This is what the data structure looks like.  This one named hash has a key for each node number.
+# The value is an anonymous hash reference.  That hash reference has keys for "node_status", "moab", "IB", etc.
+# The value of those keys are an anonymous hash reference.  That hash has keys of the state and values of the count.
+# $node_states{$node_number} = {
+#   "node_status" => {"down" => 1}, # The state: up, down, boot, error
+#   "moab" => {"down" => 1}, # Moab's status: up, down, sysfail
+#   "ib" => {"up" => 1}, # Infiniband state: up, down, sysfail, na
+#   "/scratch" => {"ok" => 1} # /scratch in use and mount check: above95, ok, sysfail, notmounted
+#   "/opt/sam" => {"ok" => 1} # /opt/sam mount check: ok, sysfail, notmounted
+#   "/home" => {"ok" => 1} # /home mount check: ok, sysfail, notmounted
+#   "/gscratch" => {"ok" => 1} # /gscratch mount check: ok, sysfail, notmounted
+#   "/opt/pkg" => {"ok" => 1} # /opt/sam mount check: ok, sysfail, notmounted
+# };
+
+
+# Print an HTML header
+print <<EOI unless ($text_mode);
+Content-type: text/html\n\n
+<html>
+<head>
+<title>Frank Compute Node Status</title>
+<link href="http://headnode0-dev.cssd.pitt.edu/nodes-css/style.css" rel="stylesheet" type="text/css">
+</head>
+<body>
+<table id="nodes" summary="Node status" class="fancy">
+  <thead>
+    <tr>
+      <th scope="col">Node</th>
+      <th scope="col">State</th>
+      <th scope="col">Moab</th>
+      <th scope="col">Infiniband</th>
+      <th scope="col">/scratch</th>
+      <th scope="col">/pan</th>
+      <th scope="col">/opt/sam</th>
+      <th scope="col">/opt/pkg</th>
+      <th scope="col">/home</th>
+      <th scope="col">/gscratch</th>
+    </tr>
+  </thead>
+  <tbody>
+EOI
+
+
+# Loop through the node number hash
+if ($text_mode) {
+  for my $node_number (sort { $a <=> $b } (keys(%node_states))) {
+    print "Node: $node_number\n";
+    
+    # Loop through each monitor
+    for my $monitor (reverse(sort(keys(%{${node_states{$node_number}}})))) {
+      print "  $monitor: ";
+      
+      for my $status (qw(up ok down boot error sysfail n/a above_95% not_mounted)) {
+	print "$status (${${$node_states{$node_number}}{$monitor}}{$status})\n" if (${${$node_states{$node_number}}{$monitor}}{$status});
+      }
+      
+    }
+    
+    print "\n";
+  }
+}
+else {
+  for my $node_number (sort { $a <=> $b } (keys(%node_states))) {
+    print "<tr>\n";
+    print "<td>$node_number</td>\n";
+    
+    # Loop through each monitor
+    for my $monitor (reverse(sort(keys(%{${node_states{$node_number}}})))) {
+
+      # Find the current status
+      for my $status (qw(up ok down boot error sysfail n/a above_95% not_mounted)) {
+      
+        # Print success in black, failures in red
+        if ((${${$node_states{$node_number}}{$monitor}}{$status}) and (($status eq "ok") or ($status eq "up") or ($status eq "n/a"))) {
+          print "<td>$status (${${$node_states{$node_number}}{$monitor}}{$status})</td>\n";
+	}
+	elsif (${${$node_states{$node_number}}{$monitor}}{$status}) {
+          print "<td><font color='red'>$status (${${$node_states{$node_number}}{$monitor}}{$status})</font></td>\n";
+	}
+	
+      }
+      
+    }
+    
+    print "</tr>\n";
+    
+  }
+}
+
+
+
+
+# Print an HTML footer
+print <<EOI unless ($text_mode);
+  </tbody>
+</table>
+</html>
+</body>
+EOI

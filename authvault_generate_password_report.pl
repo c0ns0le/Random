@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 # Description: Perl script to parse a CSV and generate a report
 # Written By: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 1.0 (2012-4-19)
-# Last change: Initial version
+# Version: 1.1
+# Last change: Don't output old password if there was none, minor code cleanup
 
 ##### License
 # This script is released under version three (3) of the GNU General Public License (GPL) of the 
@@ -26,12 +26,11 @@ if ($helpopt) {
   exit;
 }
 
-my @categories;
-
 # Read in the files into an array
 my @all_lines = <>;
 
 # Loop through each line of the CSV and note the category
+my @categories;
 my $csv = Text::CSV->new({ binary => 1, empty_is_undef => 1});
 for my $each_line (@all_lines) {
 
@@ -66,10 +65,16 @@ for my $each_category (@categories) {
 	print "Name: $name\n";
 	print "User: $user\n";
 	print "Password: $password\n";
-	print "Old Password: $old_password\n\n";
+	if (($old_password) and ($old_password eq "nothing")) {
+          print "\n";
+	}
+	elsif ($old_password) {
+          print "Old Password: $old_password\n\n";
+        }
       }
 
-    } else {
+    }
+    else {
       my $error_desc = $csv->error_diag;
       warn "Failed to parse line: $error_desc";
     }

@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 # Description: Display the status of compute nodes via either plain text or HTML
 # Written By: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 1
-# Last change: Initial version
+# Version: 1.1
+# Last change: Added a header section to the Web page, added the code in style.css
 
 ##### License
 # This script is released under version three (3) of the GNU General Public License (GPL) of the 
@@ -32,6 +32,7 @@ if ($helpopt) {
 # Pull in the node state file
 unless (-f "/tmp/node_status.dump") {
   print STDERR "Failed to find node state file '/tmp/node_status.dump'\n";
+  die;
 }
 
 my %node_states = %{retrieve("/tmp/node_status.dump")};
@@ -40,14 +41,19 @@ my %node_states = %{retrieve("/tmp/node_status.dump")};
 # The value of those keys are an anonymous hash reference.  That hash has keys of the state and values of the count.
 # $node_states{$node_number} = {
 #   "node_status" => {"down" => 1}, # The state: up, down, boot, error
-#   "moab" => {"down" => 1}, # Moab's status: up, down, sysfail
-#   "ib" => {"up" => 1}, # Infiniband state: up, down, sysfail, na
-#   "/scratch" => {"ok" => 1} # /scratch in use and mount check: above95, ok, sysfail, notmounted
-#   "/opt/sam" => {"ok" => 1} # /opt/sam mount check: ok, sysfail, notmounted
-#   "/home" => {"ok" => 1} # /home mount check: ok, sysfail, notmounted
-#   "/gscratch" => {"ok" => 1} # /gscratch mount check: ok, sysfail, notmounted
-#   "/opt/pkg" => {"ok" => 1} # /opt/sam mount check: ok, sysfail, notmounted
+#   "moab" => {"down" => 1}, # Moab's status: ok, down, sysfail
+#   "ib" => {"ok" => 1}, # Infiniband state: ok, down, sysfail, n/a
+#   "/scratch" => {"ok" => 1} # /scratch in use and mount check: above_95%, ok, sysfail, not_mounted
+#   "/opt/sam" => {"ok" => 1} # /opt/sam mount check: ok, sysfail, not_mounted
+#   "/opt/pkg" => {"ok" => 1} # /opt/pkg mount check: ok, sysfail, not_mounted
+#   "/home" => {"ok" => 1} # /home mount check: ok, sysfail, not_mounted
+#   "/gscratch" => {"ok" => 1} # /gscratch mount check: ok, sysfail, not_mounted
 # };
+
+
+# Get the modification time of the status file
+my $epoch_timestamp = (stat("/tmp/node_status.dump"))[9];
+my $mod_timestamp  = localtime($epoch_timestamp);
 
 
 # Print an HTML header
@@ -56,9 +62,14 @@ Content-type: text/html\n\n
 <html>
 <head>
 <title>Frank Compute Node Status</title>
-<link href="http://headnode0-dev.cssd.pitt.edu/nodes-css/style.css" rel="stylesheet" type="text/css">
+<link href="http://headnode0.frank.sam.pitt.edu/nodes-css/style.css" rel="stylesheet" type="text/css">
 </head>
 <body>
+  <center>
+    <h2>Frank Compute Node Status: 0-242</h2>
+    <h3>Nodes 243-324 are available <a href="http://headnode1.frank.sam.pitt.edu/nodes">here</a></h3>
+    <p>Status last generated $mod_timestamp</p>
+  </center>
 <table id="nodes" summary="Node status" class="fancy">
   <thead>
     <tr>
@@ -80,6 +91,8 @@ EOI
 
 # Loop through the node number hash
 if ($text_mode) {
+  print "Status last generated $mod_timestamp\n";
+
   for my $node_number (sort { $a <=> $b } (keys(%node_states))) {
     print "Node: $node_number\n";
     
@@ -134,3 +147,38 @@ print <<EOI unless ($text_mode);
 </html>
 </body>
 EOI
+
+
+
+# Here's what is in style.css
+# # table.fancy {
+# #   margin: auto;
+# #   background: whitesmoke;
+# #   border-collapse: collapse;
+# #   width: 80%
+# #   
+# # }
+# # table.fancy th, table.fancy td {
+# #   border: 1px silver gainsboro;
+# #   padding: 0.2em;
+# # }
+# # table.fancy th {
+# #   background: gainsboro;
+# #   text-align: left;
+# # }
+# # table.fancy tr:hover td {
+# #    background: mintcream !important;
+# # }
+# # table.fancy caption {
+# #   margin-left: inherit;
+# #   margin-right: inherit;
+# # }
+# # 
+# # body {background-color:#A4A4A4}
+# # 
+# # .title {
+# #         text-align: center;
+# #         font-family: Arial, Helvetica, sans-serif;
+# #         font-size: 20px;
+# #         color: #F6F2F2;
+# #         }

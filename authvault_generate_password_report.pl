@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 # Description: Perl script to parse a CSV and generate a report
 # Written By: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 1.1
-# Last change: Don't output old password if there was none, minor code cleanup
+# Version: 1.2
+# Last change: Changed output to be shorter and alabetically sorted
 
 ##### License
 # This script is released under version three (3) of the GNU General Public License (GPL) of the 
@@ -30,7 +30,7 @@ if ($helpopt) {
 my @all_lines = <>;
 
 # Loop through each line of the CSV and note the category
-my @categories;
+my %categories;
 my $csv = Text::CSV->new({ binary => 1, empty_is_undef => 1});
 for my $each_line (@all_lines) {
 
@@ -39,8 +39,8 @@ for my $each_line (@all_lines) {
     my ($name,$category,$user,$password,$old_password,$change_date) = $csv->fields();
 
     # Note the category if it's a new one
-    if (!grep /\Q$category\E/, @categories) {
-      push @categories, $category;
+    if (!$categories{$category}) {
+      $categories{$category} = 1;
     }
 
   } else {
@@ -50,11 +50,11 @@ for my $each_line (@all_lines) {
 
 }
 
-for my $each_category (@categories) {
+for my $each_category (sort(keys(%categories))) {
   print "$each_category:\n";
 
   # Loop through each line of the CSV and print out the line if it matches the category
-  for my $each_line (@all_lines) {
+  for my $each_line (sort(@all_lines)) {
 
     # Warn if we can't parse a line
     if ($csv->parse($each_line)) {
@@ -62,15 +62,12 @@ for my $each_category (@categories) {
       
       # Print if it matches the category
       if ($category eq $each_category) {
-	print "Name: $name\n";
-	print "User: $user\n";
-	print "Password: $password\n";
-	if (($old_password) and ($old_password eq "nothing")) {
-          print "\n";
-	}
-	elsif ($old_password) {
-          print "Old Password: $old_password\n\n";
+        if (($old_password) and ($old_password eq "nothing")) {
+            print "$name | $user | $password\n\n";
         }
+        elsif ($old_password) {
+            print "$name | $user | $password | $old_password\n\n";
+          }
       }
 
     }

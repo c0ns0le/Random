@@ -1,10 +1,8 @@
 #!/usr/bin/perl
 # Description: Check the health of compute nodes in a Beowulf HPC cluster
 # Written By: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 8
-# Last change: Complete rewrite.  This now can dump the node health information to
-# a file so we don't create a syslog alert until a problem was found on a node x times
-# in a row.  Mount point checks added.
+# Version: 8.1
+# Last change: Pretty-up the names of monitor states
 
 ##### License
 # This script is released under version three (3) of the GNU General Public License (GPL) of the 
@@ -42,7 +40,7 @@ if ($helpopt) {
   print "-n | --nodes : Which nodes to check.  Default: 0-202,204-241\n";
   print "-e | --export : Export the node health status data to /tmp/node_status.dump\n";
   print "\nExamples:\n";
-  print "Check nodes 0 through 9: $0 -n 0-9\n";
+  print "Check nodes 0 through 9, skip 5: $0 -n 0-4,6-9\n";
   exit;
 }
 
@@ -74,12 +72,13 @@ my %node_states;
 # The value of those keys are an anonymous hash reference.  That hash has keys of the state and values of the count.
 # $node_states{$node_number} = {
 #   "node_status" => {"down" => 1}, # The state: up, down, boot, error
-#   "moab" => {"down" => 1}, # Moab's status: up, down, sysfail
-#   "ib" => {"up" => 1}, # Infiniband state: up, down, sysfail, na
-#   "/scratch" => {"ok" => 1} # /scratch in use and mount check: above95, ok, sysfail, notmounted
-#   "/opt/sam" => {"ok" => 1} # /opt/sam mount check: ok, sysfail, notmounted
-#   "/home" => {"ok" => 1} # /home mount check: ok, sysfail, notmounted
-#   "/gscratch" => {"ok" => 1} # /gscratch mount check: ok, sysfail, notmounted
+#   "moab" => {"down" => 1}, # Moab's status: ok, down, sysfail
+#   "ib" => {"ok" => 1}, # Infiniband state: ok, down, sysfail, n/a
+#   "/scratch" => {"ok" => 1} # /scratch in use and mount check: above_95%, ok, sysfail, not_mounted
+#   "/opt/sam" => {"ok" => 1} # /opt/sam mount check: ok, sysfail, not_mounted
+#   "/opt/pkg" => {"ok" => 1} # /opt/pkg mount check: ok, sysfail, not_mounted
+#   "/home" => {"ok" => 1} # /home mount check: ok, sysfail, not_mounted
+#   "/gscratch" => {"ok" => 1} # /gscratch mount check: ok, sysfail, not_mounted
 # };
 
 
@@ -119,7 +118,7 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
     print STDERR BOLD RED "Node $node_number is not up, state: down (${${$node_states{$node_number}}{'node_status'}}{'down'})\n\n";
     
     if (${${$node_states{$node_number}}{'node_status'}}{'down'} >= 2) {
-      syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Node $node_number is not up, state: down (${${$node_states{$node_number}}{'node_status'}}{'down'})-- $0");
+      syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Node $node_number is not up, state: down-- $0");
     }
     
     next;
@@ -134,7 +133,7 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
     print STDERR BOLD RED "Not up, state: boot (${${$node_states{$node_number}}{'node_status'}}{'boot'})\n\n";
     
     if (${${$node_states{$node_number}}{'node_status'}}{'boot'} >= 5) {
-      syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Node $node_number is not up, state: boot (${${$node_states{$node_number}}{'node_status'}}{'boot'}) -- $0");
+      syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Node $node_number is not up, state: boot -- $0");
     }
     
     next;
@@ -148,14 +147,14 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
     
     print STDERR BOLD RED "Not up, state: $node_status (${${$node_states{$node_number}}{'node_status'}}{'error'})\n\n";
     
-    syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Node $node_number is not up, state: error (${${$node_states{$node_number}}{'node_status'}}{'error'}) -- $0");
+    syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Node $node_number is not up, state: error -- $0");
     
     next;
   }
 
 
 
-  # Check if Moab thinks the nodes are up
+  # Check if Moab thinks the nodes are ok
   system("$checknode n$node_number >/dev/null"); # /bin/sh is called here to handle the >/dev/null
   
   # Did the call to checknode fail?
@@ -163,14 +162,14 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
   
   if ($moab_status == -1) {
     delete ${${$node_states{$node_number}}{'moab'}}{'down'};
-    delete ${${$node_states{$node_number}}{'moab'}}{'up'};
+    delete ${${$node_states{$node_number}}{'moab'}}{'ok'};
     
     ${${$node_states{$node_number}}{'moab'}}{'sysfail'}++;
     
     print STDERR BOLD RED "Call to Moab's checknode failed (${${$node_states{$node_number}}{'moab'}}{'sysfail'})\n";
 
     if (${${$node_states{$node_number}}{'moab'}}{'sysfail'} >= 2) {
-      syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Call to Moab's checknode failed on node $node_number (${${$node_states{$node_number}}{'moab'}}{'sysfail'}) -- $0");
+      syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Call to Moab's checknode failed on node $node_number -- $0");
     }
     
   }
@@ -178,12 +177,12 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
     delete ${${$node_states{$node_number}}{'moab'}}{'sysfail'};
     delete ${${$node_states{$node_number}}{'moab'}}{'down'};
     
-    ${${$node_states{$node_number}}{'moab'}}{'up'}++;
+    ${${$node_states{$node_number}}{'moab'}}{'ok'}++;
     
-    print "Moab is up (${${$node_states{$node_number}}{'moab'}}{'up'})\n";
+    print "Moab is ok (${${$node_states{$node_number}}{'moab'}}{'ok'})\n";
   }
   else {
-    delete ${${$node_states{$node_number}}{'moab'}}{'up'};
+    delete ${${$node_states{$node_number}}{'moab'}}{'ok'};
     delete ${${$node_states{$node_number}}{'moab'}}{'sysfail'};
     
     ${${$node_states{$node_number}}{'moab'}}{'down'}++;
@@ -191,7 +190,7 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
     print STDERR BOLD RED "Moab is down (${${$node_states{$node_number}}{'moab'}}{'down'})\n";
 
     if (${${$node_states{$node_number}}{'moab'}}{'down'} >= 3) {
-      syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Moab (resource scheduler) is down on node $node_number (${${$node_states{$node_number}}{'moab'}}{'down'}) -- $0");
+      syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Moab (resource scheduler) is down on node $node_number -- $0");
     }
     
   }
@@ -208,12 +207,12 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
     ($node_number =~ m/^242$/)
   ) {
     delete ${${$node_states{$node_number}}{'ib'}}{'down'};
-    delete ${${$node_states{$node_number}}{'ib'}}{'up'};
+    delete ${${$node_states{$node_number}}{'ib'}}{'ok'};
     delete ${${$node_states{$node_number}}{'ib'}}{'sysfail'};
     
-    ${${$node_states{$node_number}}{'ib'}}{'na'}++;
+    ${${$node_states{$node_number}}{'ib'}}{'n/a'}++;
     
-    print "IB is N/A (${${$node_states{$node_number}}{'ib'}}{'na'})\n";
+    print "IB is N/A (${${$node_states{$node_number}}{'ib'}}{'n/a'})\n";
   }
   else {
     # Get the IB device info
@@ -223,38 +222,38 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
     # Did the call to bpsh fail?
     if (($ib_status == -1) or (!$ibv_devinfo_output)) {
       delete ${${$node_states{$node_number}}{'ib'}}{'down'};
-      delete ${${$node_states{$node_number}}{'ib'}}{'up'};
-      delete ${${$node_states{$node_number}}{'ib'}}{'na'};
+      delete ${${$node_states{$node_number}}{'ib'}}{'ok'};
+      delete ${${$node_states{$node_number}}{'ib'}}{'n/a'};
       
       ${${$node_states{$node_number}}{'ib'}}{'sysfail'}++;
       
       print STDERR BOLD RED "Call to check IB failed (${${$node_states{$node_number}}{'ib'}}{'sysfail'})\n";
     
       if (${${$node_states{$node_number}}{'ib'}}{'sysfail'} >= 2) {
-        syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Call to check IB failed on node $node_number (${${$node_states{$node_number}}{'ib'}}{'sysfail'}) -- $0");
+        syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Call to check IB failed on node $node_number -- $0");
       }
     
     }
     elsif (($ib_status == 0) and ($ibv_devinfo_output) and ($ibv_devinfo_output =~ m/state:\s+PORT_ACTIVE/)) {
       delete ${${$node_states{$node_number}}{'ib'}}{'sysfail'};
       delete ${${$node_states{$node_number}}{'ib'}}{'down'};
-      delete ${${$node_states{$node_number}}{'ib'}}{'na'};
+      delete ${${$node_states{$node_number}}{'ib'}}{'n/a'};
       
-      ${${$node_states{$node_number}}{'ib'}}{'up'}++;
+      ${${$node_states{$node_number}}{'ib'}}{'ok'}++;
       
-      print "IB is up\n";
+      print "IB is ok\n";
     }
     else {
-      delete ${${$node_states{$node_number}}{'ib'}}{'up'};
+      delete ${${$node_states{$node_number}}{'ib'}}{'ok'};
       delete ${${$node_states{$node_number}}{'ib'}}{'sysfail'};
-      delete ${${$node_states{$node_number}}{'ib'}}{'na'};
+      delete ${${$node_states{$node_number}}{'ib'}}{'n/a'};
       
       ${${$node_states{$node_number}}{'ib'}}{'down'}++;
       
       print STDERR BOLD RED "IB is down (${${$node_states{$node_number}}{'ib'}}{'down'})\n";
       
       if (${${$node_states{$node_number}}{'ib'}}{'down'} >= 2) {
-        syslog("LOG_ERR", "NOC-NETCOOL-TICKET: IB is down on node $node_number (${${$node_states{$node_number}}{'ib'}}{'down'}) -- $0");
+        syslog("LOG_ERR", "NOC-NETCOOL-TICKET: IB is down on node $node_number -- $0");
       }
       
     }
@@ -270,23 +269,23 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
   for my $mount_point (qw(/scratch /home /opt/sam /opt/pkg /gscratch /pan)) {
   
     if ($bpsh_status == -1) {
-      delete ${${$node_states{$node_number}}{$mount_point}}{'above95'};
+      delete ${${$node_states{$node_number}}{$mount_point}}{'above_95%'};
       delete ${${$node_states{$node_number}}{$mount_point}}{'ok'};
-      delete ${${$node_states{$node_number}}{$mount_point}}{'notmounted'};
+      delete ${${$node_states{$node_number}}{$mount_point}}{'not_mounted'};
       
       ${${$node_states{$node_number}}{$mount_point}}{'sysfail'}++;
       
       print STDERR BOLD RED "Call to check $mount_point failed (${${$node_states{$node_number}}{$mount_point}}{'sysfail'})\n";
 
       if (${${$node_states{$node_number}}{$mount_point}}{'sysfail'} >= 2) {
-        syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Call to check $mount_point failed on node $node_number (${${$node_states{$node_number}}{$mount_point}}{'sysfail'}) -- $0");
+        syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Call to check $mount_point failed on node $node_number -- $0");
       }
     
     }
     elsif (grep(m|\Q $mount_point \E|, @proc_mounts)) {
-      delete ${${$node_states{$node_number}}{$mount_point}}{'notmounted'};
+      delete ${${$node_states{$node_number}}{$mount_point}}{'not_mounted'};
       delete ${${$node_states{$node_number}}{$mount_point}}{'sysfail'};
-      delete ${${$node_states{$node_number}}{$mount_point}}{'above95'};
+      delete ${${$node_states{$node_number}}{$mount_point}}{'above_95%'};
       
       ${${$node_states{$node_number}}{$mount_point}}{'ok'}++;
       
@@ -296,14 +295,14 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
     else {
       delete ${${$node_states{$node_number}}{$mount_point}}{'ok'};
       delete ${${$node_states{$node_number}}{$mount_point}}{'sysfail'};
-      delete ${${$node_states{$node_number}}{$mount_point}}{'above95'};
+      delete ${${$node_states{$node_number}}{$mount_point}}{'above_95%'};
       
-      ${${$node_states{$node_number}}{$mount_point}}{'notmounted'}++;
+      ${${$node_states{$node_number}}{$mount_point}}{'not_mounted'}++;
       
-      print STDERR BOLD RED "$mount_point not mounted (${${$node_states{$node_number}}{$mount_point}}{'notmounted'})\n";
+      print STDERR BOLD RED "$mount_point not mounted (${${$node_states{$node_number}}{$mount_point}}{'not_mounted'})\n";
 
-      if (${${$node_states{$node_number}}{$mount_point}}{'notmounted'} >= 3) {
-        syslog("LOG_ERR", "NOC-NETCOOL-TICKET: $mount_point not mounted on node $node_number (${${$node_states{$node_number}}{$mount_point}}{'notmounted'}) -- $0");
+      if (${${$node_states{$node_number}}{$mount_point}}{'not_mounted'} >= 3) {
+        syslog("LOG_ERR", "NOC-NETCOOL-TICKET: $mount_point not mounted on node $node_number -- $0");
       }
       
     }
@@ -313,7 +312,7 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
   
 
   # Check the node's /scratch fullness
-  next if (${${$node_states{$node_number}}{'/scratch'}}{'notmounted'});
+  next if (${${$node_states{$node_number}}{'/scratch'}}{'not_mounted'});
   
   # Get the scratch space info
   my $df_output = `$bpsh $node_number df -hP /scratch`;
@@ -324,23 +323,23 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
   $local_scratch_used_space =~ s/\%//;
 
   if (($scratch_status == -1) or (!$local_scratch_used_space)) {
-    delete ${${$node_states{$node_number}}{'/scratch'}}{'above95'};
+    delete ${${$node_states{$node_number}}{'/scratch'}}{'above_95%'};
     delete ${${$node_states{$node_number}}{'/scratch'}}{'ok'};
-    delete ${${$node_states{$node_number}}{'/scratch'}}{'notmounted'};
+    delete ${${$node_states{$node_number}}{'/scratch'}}{'not_mounted'};
     
     ${${$node_states{$node_number}}{'/scratch'}}{'sysfail'}++;
     
     print STDERR BOLD RED "Call to check /scratch space failed (${${$node_states{$node_number}}{'/scratch'}}{'sysfail'})\n";
 
     if (${${$node_states{$node_number}}{'/scratch'}}{'sysfail'} >= 2) {
-      syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Call to check /scratch space failed on node $node_number (${${$node_states{$node_number}}{'/scratch'}}{'sysfail'}) -- $0");
+      syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Call to check /scratch space failed on node $node_number -- $0");
     }
     
   }
   elsif (($scratch_status == 0) and ($local_scratch_used_space < 95)) {
     delete ${${$node_states{$node_number}}{'/scratch'}}{'sysfail'};
-    delete ${${$node_states{$node_number}}{'/scratch'}}{'above95'};
-    delete ${${$node_states{$node_number}}{'/scratch'}}{'notmounted'};
+    delete ${${$node_states{$node_number}}{'/scratch'}}{'above_95%'};
+    delete ${${$node_states{$node_number}}{'/scratch'}}{'not_mounted'};
     
 #     ${${$node_states{$node_number}}{'/scratch'}}{'ok'}++;
     
@@ -349,14 +348,14 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
   else {
     delete ${${$node_states{$node_number}}{'/scratch'}}{'ok'};
     delete ${${$node_states{$node_number}}{'/scratch'}}{'sysfail'};
-    delete ${${$node_states{$node_number}}{'/scratch'}}{'notmounted'};
+    delete ${${$node_states{$node_number}}{'/scratch'}}{'not_mounted'};
     
-    ${${$node_states{$node_number}}{'/scratch'}}{'above95'}++;
+    ${${$node_states{$node_number}}{'/scratch'}}{'above_95%'}++;
     
-    print STDERR BOLD RED "/scratch space above 95% (${${$node_states{$node_number}}{'/scratch'}}{'above95'})\n";
+    print STDERR BOLD RED "/scratch space above 95% (${${$node_states{$node_number}}{'/scratch'}}{'above_95%'})\n";
 
-    if (${${$node_states{$node_number}}{'/scratch'}}{'above95'} >= 2) {
-      syslog("LOG_ERR", "NOC-NETCOOL-TICKET: /scratch space above 95% on node $node_number (${${$node_states{$node_number}}{'/scratch'}}{'above95'}) -- $0");
+    if (${${$node_states{$node_number}}{'/scratch'}}{'above_95%'} >= 2) {
+      syslog("LOG_ERR", "NOC-NETCOOL-TICKET: /scratch space above 95% on node $node_number -- $0");
     }  
     
   }  

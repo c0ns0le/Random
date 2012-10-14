@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 # Description: Check the health of compute nodes in a Beowulf HPC cluster
 # Written By: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 8.1
-# Last change: Pretty-up the names of monitor states
+# Version: 8.2
+# Last change: Adjusted threshold for throwing syslog alerts based on running every 10 minutes from cron instead of 30
 
 ##### License
 # This script is released under version three (3) of the GNU General Public License (GPL) of the 
@@ -132,7 +132,7 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
     
     print STDERR BOLD RED "Not up, state: boot (${${$node_states{$node_number}}{'node_status'}}{'boot'})\n\n";
     
-    if (${${$node_states{$node_number}}{'node_status'}}{'boot'} >= 5) {
+    if (${${$node_states{$node_number}}{'node_status'}}{'boot'} >= 18) {
       syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Node $node_number is not up, state: boot -- $0");
     }
     
@@ -168,7 +168,7 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
     
     print STDERR BOLD RED "Call to Moab's checknode failed (${${$node_states{$node_number}}{'moab'}}{'sysfail'})\n";
 
-    if (${${$node_states{$node_number}}{'moab'}}{'sysfail'} >= 2) {
+    if (${${$node_states{$node_number}}{'moab'}}{'sysfail'} >= 3) {
       syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Call to Moab's checknode failed on node $node_number -- $0");
     }
     
@@ -189,7 +189,7 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
     
     print STDERR BOLD RED "Moab is down (${${$node_states{$node_number}}{'moab'}}{'down'})\n";
 
-    if (${${$node_states{$node_number}}{'moab'}}{'down'} >= 3) {
+    if (${${$node_states{$node_number}}{'moab'}}{'down'} >= 6) {
       syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Moab (resource scheduler) is down on node $node_number -- $0");
     }
     
@@ -229,7 +229,7 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
       
       print STDERR BOLD RED "Call to check IB failed (${${$node_states{$node_number}}{'ib'}}{'sysfail'})\n";
     
-      if (${${$node_states{$node_number}}{'ib'}}{'sysfail'} >= 2) {
+      if (${${$node_states{$node_number}}{'ib'}}{'sysfail'} >= 3) {
         syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Call to check IB failed on node $node_number -- $0");
       }
     
@@ -252,7 +252,7 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
       
       print STDERR BOLD RED "IB is down (${${$node_states{$node_number}}{'ib'}}{'down'})\n";
       
-      if (${${$node_states{$node_number}}{'ib'}}{'down'} >= 2) {
+      if (${${$node_states{$node_number}}{'ib'}}{'down'} >= 6) {
         syslog("LOG_ERR", "NOC-NETCOOL-TICKET: IB is down on node $node_number -- $0");
       }
       
@@ -277,7 +277,7 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
       
       print STDERR BOLD RED "Call to check $mount_point failed (${${$node_states{$node_number}}{$mount_point}}{'sysfail'})\n";
 
-      if (${${$node_states{$node_number}}{$mount_point}}{'sysfail'} >= 2) {
+      if (${${$node_states{$node_number}}{$mount_point}}{'sysfail'} >= 3) {
         syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Call to check $mount_point failed on node $node_number -- $0");
       }
     
@@ -301,7 +301,7 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
       
       print STDERR BOLD RED "$mount_point not mounted (${${$node_states{$node_number}}{$mount_point}}{'not_mounted'})\n";
 
-      if (${${$node_states{$node_number}}{$mount_point}}{'not_mounted'} >= 3) {
+      if (${${$node_states{$node_number}}{$mount_point}}{'not_mounted'} >= 2) {
         syslog("LOG_ERR", "NOC-NETCOOL-TICKET: $mount_point not mounted on node $node_number -- $0");
       }
       
@@ -331,7 +331,7 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
     
     print STDERR BOLD RED "Call to check /scratch space failed (${${$node_states{$node_number}}{'/scratch'}}{'sysfail'})\n";
 
-    if (${${$node_states{$node_number}}{'/scratch'}}{'sysfail'} >= 2) {
+    if (${${$node_states{$node_number}}{'/scratch'}}{'sysfail'} >= 3) {
       syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Call to check /scratch space failed on node $node_number -- $0");
     }
     
@@ -341,6 +341,7 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
     delete ${${$node_states{$node_number}}{'/scratch'}}{'above_95%'};
     delete ${${$node_states{$node_number}}{'/scratch'}}{'not_mounted'};
     
+    # We don't set the status to ok again as it was set to ok in the mount check
 #     ${${$node_states{$node_number}}{'/scratch'}}{'ok'}++;
     
     print "/scratch space is ok (${${$node_states{$node_number}}{'/scratch'}}{'ok'})\n";
@@ -354,7 +355,7 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
     
     print STDERR BOLD RED "/scratch space above 95% (${${$node_states{$node_number}}{'/scratch'}}{'above_95%'})\n";
 
-    if (${${$node_states{$node_number}}{'/scratch'}}{'above_95%'} >= 2) {
+    if (${${$node_states{$node_number}}{'/scratch'}}{'above_95%'} >= 12) {
       syslog("LOG_ERR", "NOC-NETCOOL-TICKET: /scratch space above 95% on node $node_number -- $0");
     }  
     

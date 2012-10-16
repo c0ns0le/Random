@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 # Description: Display the status of compute nodes via either plain text or HTML
 # Written By: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 1.4
-# Last change: Alternate row colors
+# Version: 1.4.1
+# Last change: Print blank table cells when a node is not up
 
 ##### License
 # This script is released under version three (3) of the GNU General Public License (GPL) of the 
@@ -183,6 +183,12 @@ else {
 	
       }
       
+    }
+    
+    # If node_status is not up then just print blank table cells for everything else
+    unless (${${$node_states{$node_number}}{'node_status'}}{'up'}) {
+      print "<td></td>\n" x 8;
+      next;
     }
     
     print "</tr>\n";

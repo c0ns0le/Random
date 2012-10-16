@@ -1,8 +1,9 @@
 #!/usr/bin/perl
 # Description: Display the status of compute nodes via either plain text or HTML
 # Written By: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 1.1
-# Last change: Added a header section to the Web page, added the code in style.css
+# Version: 1.2
+# Last change: Added color to the text output, changed failed monitor states to be red only if above a threshold, 
+# replaced depreciated <font> tags to CSS styles, made the count beside each status a smaller font
 
 ##### License
 # This script is released under version three (3) of the GNU General Public License (GPL) of the 
@@ -16,6 +17,8 @@ use strict;
 use warnings;
 use Getopt::Long;
 use Storable;
+use Term::ANSIColor qw(:constants);
+$Term::ANSIColor::AUTORESET = 1;
 
 GetOptions('h|help' => \my $helpopt,
 	   't|text' => \my $text_mode,
@@ -100,8 +103,33 @@ if ($text_mode) {
     for my $monitor (reverse(sort(keys(%{${node_states{$node_number}}})))) {
       print "  $monitor: ";
       
+      # Find the current status
       for my $status (qw(up ok down boot error sysfail n/a above_95% not_mounted)) {
-	print "$status (${${$node_states{$node_number}}{$monitor}}{$status})\n" if (${${$node_states{$node_number}}{$monitor}}{$status});
+
+        # Print success in black ...
+        if ((${${$node_states{$node_number}}{$monitor}}{$status}) and (($status eq "ok") or ($status eq "up") or ($status eq "n/a"))) {
+          print "$status (${${$node_states{$node_number}}{$monitor}}{$status})\n";
+        }
+        # ... pending failures in magenta ...
+        elsif
+          ( # The most complicated condition created by mankind
+            (${${$node_states{$node_number}}{$monitor}}{$status}) and (
+              (($monitor eq 'node_status') and ($status eq 'down') and (${${$node_states{$node_number}}{$monitor}}{$status} < 2)) or
+              (($monitor eq 'node_status') and ($status eq 'boot') and (${${$node_states{$node_number}}{$monitor}}{$status} < 18)) or
+              (($status eq 'sysfail') and (${${$node_states{$node_number}}{$monitor}}{$status} < 3)) or
+              (($monitor eq 'moab') and ($status eq 'down') and (${${$node_states{$node_number}}{$monitor}}{$status} < 6)) or
+              (($monitor eq 'ib') and ($status eq 'down') and (${${$node_states{$node_number}}{$monitor}}{$status} < 6)) or
+              (($status eq 'not_mounted') and (${${$node_states{$node_number}}{$monitor}}{$status} < 2)) or
+              (($monitor eq '/scratch') and ($status eq 'above_95%') and (${${$node_states{$node_number}}{$monitor}}{$status} < 12))
+            )
+          ) {
+          print MAGENTA "$status (${${$node_states{$node_number}}{$monitor}}{$status})\n";
+        }
+        # ... and failures in red
+        elsif (${${$node_states{$node_number}}{$monitor}}{$status}) {
+          print RED "$status (${${$node_states{$node_number}}{$monitor}}{$status})\n";
+        }
+        
       }
       
     }
@@ -120,12 +148,28 @@ else {
       # Find the current status
       for my $status (qw(up ok down boot error sysfail n/a above_95% not_mounted)) {
       
-        # Print success in black, failures in red
+        # Print success in black ...
         if ((${${$node_states{$node_number}}{$monitor}}{$status}) and (($status eq "ok") or ($status eq "up") or ($status eq "n/a"))) {
-          print "<td>$status (${${$node_states{$node_number}}{$monitor}}{$status})</td>\n";
+          print "<td>$status <span style='font-size:75%'>(${${$node_states{$node_number}}{$monitor}}{$status})</span></td>\n";
 	}
+	# ... pending failures in magenta ...
+	elsif
+          ( # The most complicated condition created by mankind
+            (${${$node_states{$node_number}}{$monitor}}{$status}) and (
+              (($monitor eq 'node_status') and ($status eq 'down') and (${${$node_states{$node_number}}{$monitor}}{$status} < 2)) or
+              (($monitor eq 'node_status') and ($status eq 'boot') and (${${$node_states{$node_number}}{$monitor}}{$status} < 18)) or
+              (($status eq 'sysfail') and (${${$node_states{$node_number}}{$monitor}}{$status} < 3)) or
+              (($monitor eq 'moab') and ($status eq 'down') and (${${$node_states{$node_number}}{$monitor}}{$status} < 6)) or
+              (($monitor eq 'ib') and ($status eq 'down') and (${${$node_states{$node_number}}{$monitor}}{$status} < 6)) or
+              (($status eq 'not_mounted') and (${${$node_states{$node_number}}{$monitor}}{$status} < 2)) or
+              (($monitor eq '/scratch') and ($status eq 'above_95%') and (${${$node_states{$node_number}}{$monitor}}{$status} < 12))
+            )
+          ) {
+          print "<td><span style='color:magenta'>$status</span> <span style='font-size:75%'>(${${$node_states{$node_number}}{$monitor}}{$status})</span></td>\n";
+	}
+	# ... and failures in red
 	elsif (${${$node_states{$node_number}}{$monitor}}{$status}) {
-          print "<td><font color='red'>$status (${${$node_states{$node_number}}{$monitor}}{$status})</font></td>\n";
+          print "<td><span style='color:red'>$status</span> <span style='font-size:75%'>(${${$node_states{$node_number}}{$monitor}}{$status})</span></td>\n";
 	}
 	
       }
@@ -144,8 +188,14 @@ else {
 print <<EOI unless ($text_mode);
   </tbody>
 </table>
-</html>
+<p>
+  Key:<br>
+  OK (black)<br>
+  Pending Failure (<span style='color:magenta'>magenta</span>)<br>
+  Failed (<span style='color:red'>red</span>)
+</p>
 </body>
+</html>
 EOI
 
 

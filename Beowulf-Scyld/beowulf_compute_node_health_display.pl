@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 # Description: Display the status of compute nodes via either plain text or HTML
 # Written By: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 1.3
-# Last change: Removed count from being printed on success states
+# Version: 1.4
+# Last change: Alternate row colors
 
 ##### License
 # This script is released under version three (3) of the GNU General Public License (GPL) of the 
@@ -137,8 +137,18 @@ if ($text_mode) {
   }
 }
 else {
+  my $row_number;
   for my $node_number (sort { $a <=> $b } (keys(%node_states))) {
-    print "<tr>\n";
+    
+    # If it is an even row number, use a different background
+    $row_number++;
+    if ($row_number % 2) {
+      print "<tr style='background:gainsboro'>\n";
+    }
+    else {
+      print "<tr>\n";
+    }
+    
     print "<td>$node_number</td>\n";
     
     # Loop through each monitor
@@ -212,7 +222,7 @@ EOI
 # #   padding: 0.2em;
 # # }
 # # table.fancy th {
-# #   background: gainsboro;
+# #   background: #bcbfc2;
 # #   text-align: left;
 # # }
 # # table.fancy tr:hover td {

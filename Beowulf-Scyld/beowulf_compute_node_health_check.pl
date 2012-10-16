@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 # Description: Check the health of compute nodes in a Beowulf HPC cluster
 # Written By: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 8.2
-# Last change: Adjusted threshold for throwing syslog alerts based on running every 10 minutes from cron instead of 30
+# Version: 8.3
+# Last change: Clear the node stats if the node_state is down/error/boot
 
 ##### License
 # This script is released under version three (3) of the GNU General Public License (GPL) of the 
@@ -109,9 +109,7 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
     print "Up (${${$node_states{$node_number}}{'node_status'}}{'up'})\n";
   }
   elsif ($node_status eq "down") {
-    delete ${${$node_states{$node_number}}{'node_status'}}{'up'};
-    delete ${${$node_states{$node_number}}{'node_status'}}{'boot'};
-    delete ${${$node_states{$node_number}}{'node_status'}}{'error'};
+    delete $node_states{$node_number} unless (${${$node_states{$node_number}}{'node_status'}}{'down'});
     
     ${${$node_states{$node_number}}{'node_status'}}{'down'}++;
     
@@ -124,9 +122,7 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
     next;
   }
   elsif ($node_status eq "boot") {
-    delete ${${$node_states{$node_number}}{'node_status'}}{'up'};
-    delete ${${$node_states{$node_number}}{'node_status'}}{'down'};
-    delete ${${$node_states{$node_number}}{'node_status'}}{'error'};
+    delete $node_states{$node_number} unless (${${$node_states{$node_number}}{'node_status'}}{'boot'});
     
     ${${$node_states{$node_number}}{'node_status'}}{'boot'}++;
     
@@ -139,9 +135,7 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
     next;
   }
   elsif ($node_status eq "error") {
-    delete ${${$node_states{$node_number}}{'node_status'}}{'up'};
-    delete ${${$node_states{$node_number}}{'node_status'}}{'down'};
-    delete ${${$node_states{$node_number}}{'node_status'}}{'boot'};
+    delete $node_states{$node_number} unless (${${$node_states{$node_number}}{'node_status'}}{'error'});
     
     ${${$node_states{$node_number}}{'node_status'}}{'error'}++;
     

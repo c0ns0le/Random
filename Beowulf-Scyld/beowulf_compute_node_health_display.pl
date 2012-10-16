@@ -1,9 +1,8 @@
 #!/usr/bin/perl
 # Description: Display the status of compute nodes via either plain text or HTML
 # Written By: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 1.2
-# Last change: Added color to the text output, changed failed monitor states to be red only if above a threshold, 
-# replaced depreciated <font> tags to CSS styles, made the count beside each status a smaller font
+# Version: 1.3
+# Last change: Removed count from being printed on success states
 
 ##### License
 # This script is released under version three (3) of the GNU General Public License (GPL) of the 
@@ -108,7 +107,7 @@ if ($text_mode) {
 
         # Print success in black ...
         if ((${${$node_states{$node_number}}{$monitor}}{$status}) and (($status eq "ok") or ($status eq "up") or ($status eq "n/a"))) {
-          print "$status (${${$node_states{$node_number}}{$monitor}}{$status})\n";
+          print "$status\n";
         }
         # ... pending failures in magenta ...
         elsif
@@ -150,7 +149,7 @@ else {
       
         # Print success in black ...
         if ((${${$node_states{$node_number}}{$monitor}}{$status}) and (($status eq "ok") or ($status eq "up") or ($status eq "n/a"))) {
-          print "<td>$status <span style='font-size:75%'>(${${$node_states{$node_number}}{$monitor}}{$status})</span></td>\n";
+          print "<td>$status</td>\n";
 	}
 	# ... pending failures in magenta ...
 	elsif

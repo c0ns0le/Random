@@ -1,6 +1,8 @@
-#!/usr/bin/perl
-#Description: Perl script to check for new VMs.
-#Written By: Jeff White of The Univeristy of Pittsburgh (jaw171@pitt.edu)
+#!/usr/bin/env perl
+# Description: Check for new VMs
+# Written By: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
+# Version: 1
+# Last change: Switch from a grep() on an array to a hash check
 
 ##### License
 # This script is released under version three (3) of the GNU General Public License (GPL) of the 
@@ -10,36 +12,38 @@
 # There is NO WARRANTY, not even for FITNESS FOR A PARTICULAR USE to the extent permitted by U.S. law.
 #####
 
-##### Revision history
-# 0.3 - 2012-4-6 - Added a slice to get the VM name instead of using junk variables. - Jeff White
-# 0.2 - 2012-4-5 - Removed unnecessary negated test. - Jeff White
-# 0.1 - 2012-4-5 - Initial version. - Jeff White
-#####
-
-use warnings; #Print warnings
-use strict; #Enforce 'good' programming rules
+use warnings;
+use strict;
 use Sys::Syslog;
 use Getopt::Long;
 
 # Where are our binaries?
 my $virsh_binary= "/usr/bin/virsh";
+my $known_vms_file = "/usr/local/etc/known_vms.txt";
 
 GetOptions('h|help' => \my $helpopt,
-	   'k|known-vms=s' => \my $known_vms_file,
+	   'k|known-vms=s' => \$known_vms_file,
           ) || die "Incorrect usage, use -h for help.\n";
 
 if (($helpopt) or (!$known_vms_file)) {
   print "Description: Check KVM for new VMs.\n";
   print "Usage: $0 [OPTION]\n";
   print "-h, --help : Show this help.\n";
-  print "-k, --known-vms : Required. File with a list of the known VMs to not alert on.\n";
+  print "-k, --known-vms (Default: /usr/local/etc/known_vms.txt)\n";
   exit;
 }
 
-# Get the known vms
+# Get the known VMs
 open my $KNOWN_VMS_FILE, "$known_vms_file" or die "Unable to open ignored lists file: $!";
-my @known_vms = <$KNOWN_VMS_FILE>;
+my %known_vms;
+
+for my $known_vm (<$KNOWN_VMS_FILE>) {
+  chomp $known_vm;
+  $known_vms{$known_vm} = 1;
+}
+
 close $KNOWN_VMS_FILE;
+
 
 # Loop through each VM and check if it is a known one
 for my $each_virsh_line (`$virsh_binary list --all`){
@@ -54,9 +58,10 @@ for my $each_virsh_line (`$virsh_binary list --all`){
   my $vm_name = (split /\s+/, $each_virsh_line)[2];
 
   # If the VM name is a known one...
-  if (grep /$vm_name/, @known_vms) {
+  if ($known_vms{$vm_name}) {
     print "$vm_name is a known VM.\n";
-  } else {
+  }
+  else {
     print "Found new VM: $vm_name\n";
     syslog("LOG_ERR", "$vm_name is new RODS KVM virtual server.  Please create a master ticket for new server. -- $0 -- NOC-NETCOOL-TICKET:");
   }

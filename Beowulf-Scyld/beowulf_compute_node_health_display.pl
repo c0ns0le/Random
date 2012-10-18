@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 # Description: Display the status of compute nodes via either plain text or HTML
 # Written By: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 1.4.1
-# Last change: Print blank table cells when a node is not up
+# Version: 1.4.2
+# Last change: Moved zerba row colors to CSS
 
 ##### License
 # This script is released under version three (3) of the GNU General Public License (GPL) of the 
@@ -137,17 +137,9 @@ if ($text_mode) {
   }
 }
 else {
-  my $row_number;
   for my $node_number (sort { $a <=> $b } (keys(%node_states))) {
     
-    # If it is an even row number, use a different background
-    $row_number++;
-    if ($row_number % 2) {
-      print "<tr style='background:gainsboro'>\n";
-    }
-    else {
-      print "<tr>\n";
-    }
+    print "<tr>\n";
     
     print "<td>$node_number</td>\n";
     
@@ -230,6 +222,9 @@ EOI
 # # table.fancy th {
 # #   background: #bcbfc2;
 # #   text-align: left;
+# # }
+# # tr:nth-child(odd) {
+# #   background: gainsboro;
 # # }
 # # table.fancy tr:hover td {
 # #    background: mintcream !important;

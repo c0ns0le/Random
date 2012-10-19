@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 # Description: Display the status of compute nodes via either plain text or HTML
 # Written By: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 1.4.2
-# Last change: Moved zerba row colors to CSS
+# Version: 1.5
+# Last change: Removed failure count from the display, added a hover-box with length of time on errors
 
 ##### License
 # This script is released under version three (3) of the GNU General Public License (GPL) of the 
@@ -122,11 +122,11 @@ if ($text_mode) {
               (($monitor eq '/scratch') and ($status eq 'above_95%') and (${${$node_states{$node_number}}{$monitor}}{$status} < 12))
             )
           ) {
-          print MAGENTA "$status (${${$node_states{$node_number}}{$monitor}}{$status})\n";
+          print MAGENTA "$status (For about ", sprintf("%.2f", ${${$node_states{$node_number}}{$monitor}}{$status} * 10 / 60), " hours)\n";
         }
         # ... and failures in red
         elsif (${${$node_states{$node_number}}{$monitor}}{$status}) {
-          print RED "$status (${${$node_states{$node_number}}{$monitor}}{$status})\n";
+          print RED "$status (For about ", sprintf("%.2f", ${${$node_states{$node_number}}{$monitor}}{$status} * 10 / 60), " hours)\n";
         }
         
       }
@@ -166,11 +166,11 @@ else {
               (($monitor eq '/scratch') and ($status eq 'above_95%') and (${${$node_states{$node_number}}{$monitor}}{$status} < 12))
             )
           ) {
-          print "<td><span style='color:magenta'>$status</span> <span style='font-size:75%'>(${${$node_states{$node_number}}{$monitor}}{$status})</span></td>\n";
+          print "<td> <span style='color:magenta' class='dropt'>$status<span>For about ",sprintf("%.2f", ${${$node_states{$node_number}}{$monitor}}{$status} * 10 / 60), " hours</span></span> </td>\n";
 	}
 	# ... and failures in red
 	elsif (${${$node_states{$node_number}}{$monitor}}{$status}) {
-          print "<td><span style='color:red'>$status</span> <span style='font-size:75%'>(${${$node_states{$node_number}}{$monitor}}{$status})</span></td>\n";
+          print "<td> <span style='color:red' class='dropt'>$status<span>For about ", sprintf("%.2f", ${${$node_states{$node_number}}{$monitor}}{$status} * 10 / 60), " hours</span></span> </td>\n";
 	}
 	
       }
@@ -242,3 +242,23 @@ EOI
 # #         font-size: 20px;
 # #         color: #F6F2F2;
 # #         }
+# # 
+# # span.dropt:hover {
+# #   text-decoration: none; background: #ffffff; z-index: 6;
+# # }
+# # span.dropt span {
+# #   position: absolute; left: -9999px;
+# #   margin: 20px 0 0 0px; padding: 3px 3px 3px 3px;
+# #   border-style:solid; border-color:black; border-width:1px; z-index: 6;
+# # }
+# # span.dropt:hover span {
+# #   left: 2%; background: #ffffff;
+# # }
+# # span.dropt span {
+# #   position: absolute; left: -9999px;
+# #   margin: 4px 0 0 0px; padding: 3px 3px 3px 3px;
+# #   border-style:solid; border-color:black; border-width:1px;
+# # }
+# # span.dropt:hover span {
+# #   margin: 20px 0 0 170px; background: #ffffff; z-index:6;
+# # }

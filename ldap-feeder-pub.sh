@@ -1,8 +1,8 @@
 #!/bin/sh
 # Description: Pull data from CDS and import it to OpenLDAP
 # Written by: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 1
-# Last change: Initial version
+# Version: 1.1
+# Last change: Removed unused SCP of data from CDS
 
 # License
 # This script is released under version three of the GNU General Public License (GPL) of the 
@@ -87,10 +87,6 @@ userPassword: {SASL}jaw171
 
 EOF
 
-if ! scp -q cdsldap@cdsdbp.cssd.pitt.edu:/tmp/cds/oid_extract.txt /export/ldap/pub/ldif/oid_extract.txt;then
-  syslog_error "$LINENO - Failed to get oid_extract.txt from CDS, exiting" "NOC-NETCOOL-TICKET"
-  exit 1
-fi
 
 # Add the objects to the LDIF
 cat /export/ldap/pub/feed/oid_extract.txt >> /export/ldap/pub/ldif/oid_data.ldif

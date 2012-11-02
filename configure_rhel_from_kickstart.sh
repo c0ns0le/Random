@@ -1,8 +1,8 @@
 #!/bin/bash
 # Description: Install NOC tools and perform post-install tasks for RHEL 6
 # Written by: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 1.3
-# Last change: Updated for RHEL 6.3, Netbackup 7.5 and OMSA 7.0, removed exit on failure, send STDERR to a file, other changes
+# Version: 1.4
+# Last change: Updated Netcool agent, do not install Netbackup on VMs, remove noctools after install
 
 # License
 # This script is released under version three of the GNU General Public License (GPL) of the 
@@ -10,6 +10,8 @@
 # Use or modification of this script implies your acceptance of this license and its terms.
 # This is a free script, you are free to change and redistribute it with the terms of the GNU GPL.
 # There is NO WARRANTY, not even for FITNESS FOR A PARTICULAR USE to the extent permitted by law.
+
+# mkisofs -r -T -J -b isolinux/isolinux.bin -c isolinux/boot.cat -no-emul-boot -boot-load-size 4 -boot-info-table -v -o /tmp/rhel-6.3-x64-pittkickstart-v3.1.iso .
 
 script="${0##*/}"
 working_dir="/var/tmp"
@@ -73,46 +75,47 @@ echo "Starting NetCool installation."
 echo "#####"
 mkdir -p "$working_dir/netcool" || print_error "ERROR - $LINENO - Failed to create $working_dir/netcool."
 cd "$working_dir/netcool" || print_error "ERROR - $LINENO - Failed to cd to $working_dir/netcool."
-tar xzf "$netcool_tar" || print_error "ERROR - $LINENO - Failed to extract $netcool_tar."
-./netcool-ssm-4.0.0-906-linux-x86.installer || print_error "ERROR - $LINENO - Failed to install NetCool."
-sleep 2
-./ssm40-fixpack10-linux-x86.run || print_error "ERROR - $LINENO - Failed to update NetCool."
+/root/netcool-ssm-4.0.0-1788-linux-x86.installer || print_error "ERROR - $LINENO - Failed to install NetCool."
 
 cd "$working_dir" || print_error "ERROR - $LINENO - Failed to cd to $working_dir."
 rm -rf "$working_dir/netcool" || print_error "ERROR - $LINENO - Failed to remove $working_dir/netcool."
+rm -f /root/netcool-ssm-4.0.0-1788-linux-x86.installer || print_error "ERROR - $LINENO - Failed to remove /root/netcool-ssm-4.0.0-1788-linux-x86.installer."
 
 
-echo "#####"
-echo "Starting NetBackup installation.  Be patient while the archive extracts."
-echo "#####"
-mkdir -p "$working_dir/netbackup" || print_error "ERROR - $LINENO - Failed to create $working_dir/netbackup."
-cd "$working_dir/netbackup" || print_error "ERROR - $LINENO - Failed to cd to $working_dir/netbackup."
-tar xzf "$netbackup_tar" || print_error "ERROR - $LINENO - Failed to extract $netbackup_tar."
-cd "$working_dir/netbackup/netbackup_7.5_rhel" || print_error "ERROR - $LINENO - Failed to cd to $working_dir/netbackup/NetBackup_7.1_RHEL."
-./install || print_error "ERROR - $LINENO - Failed to install NetBackup."
+if ! dmesg | grep -i "vmware" >/dev/null;then
+  echo "#####"
+  echo "Starting NetBackup installation.  Be patient while the archive extracts."
+  echo "#####"
+  mkdir -p "$working_dir/netbackup" || print_error "ERROR - $LINENO - Failed to create $working_dir/netbackup."
+  cd "$working_dir/netbackup" || print_error "ERROR - $LINENO - Failed to cd to $working_dir/netbackup."
+  tar xzf "$netbackup_tar" || print_error "ERROR - $LINENO - Failed to extract $netbackup_tar."
+  cd "$working_dir/netbackup/netbackup_7.5_rhel" || print_error "ERROR - $LINENO - Failed to cd to $working_dir/netbackup/NetBackup_7.1_RHEL."
+  ./install || print_error "ERROR - $LINENO - Failed to install NetBackup."
 
-cat<< EOF_bp.conf >> /usr/openv/netbackup/bp.conf || print_error "ERROR - $LINENO - Failed to add NetBackup servers to /usr/openv/netbackup/bp.conf."
-SERVER = nb-ms-01.cssd.pitt.edu
-SERVER = nb-ms-02.cssd.pitt.edu
-SERVER = nb-ms-03.cssd.pitt.edu
-SERVER = nb-ms-04.cssd.pitt.edu
-SERVER = nb-unixsnap-01.cssd.pitt.edu
-SERVER = nb-winsnap-01.cssd.pitt.edu
-SERVER = nb-winsnap-02.cssd.pitt.edu
+  cat<< EOF_bp.conf >> /usr/openv/netbackup/bp.conf || print_error "ERROR - $LINENO - Failed to add NetBackup servers to /usr/openv/netbackup/bp.conf."
+  SERVER = nb-ms-01.cssd.pitt.edu
+  SERVER = nb-ms-02.cssd.pitt.edu
+  SERVER = nb-ms-03.cssd.pitt.edu
+  SERVER = nb-ms-04.cssd.pitt.edu
+  SERVER = nb-unixsnap-01.cssd.pitt.edu
+  SERVER = nb-winsnap-01.cssd.pitt.edu
+  SERVER = nb-winsnap-02.cssd.pitt.edu
 EOF_bp.conf
 
-cat<< EOF_exclude_list > /usr/openv/netbackup/exclude_list || print_error "ERROR - $LINENO - Failed to create NetBackup exclude list at /usr/openv/netbackup/exclude_list."
-/proc
-/sys
-/selinux
-/mnt
-/media
-/afs
-/dev/shm
+  cat<< EOF_exclude_list > /usr/openv/netbackup/exclude_list || print_error "ERROR - $LINENO - Failed to create NetBackup exclude list at /usr/openv/netbackup/exclude_list."
+  /proc
+  /sys
+  /selinux
+  /mnt
+  /media
+  /afs
+  /dev/shm
 EOF_exclude_list
 
-cd "$working_dir" || print_error "ERROR - $LINENO - Failed to cd to $working_dir." 1
-rm -rf "$working_dir/netbackup" || print_error "ERROR - $LINENO - Failed to remove $working_dir/netbackup."
+  cd "$working_dir" || print_error "ERROR - $LINENO - Failed to cd to $working_dir." 1
+  rm -rf "$working_dir/netbackup" || print_error "ERROR - $LINENO - Failed to remove $working_dir/netbackup."
+  rm -f "$netbackup_tar" || print_error "ERROR - $LINENO - Failed to remove $netbackup_tar."
+fi
 
 if grep -i "vmware" /var/log/dmesg >/dev/null;then
   echo "#####"
@@ -123,7 +126,7 @@ elif grep -i "dell" /var/log/dmesg;then
   echo "Starting Dell Open Manage Installation."
   echo "#####"
   /usr/local/bin/dellomsa_7.0.sh || print_error "ERROR - $LINENO - Failed to run Dell OMSA script."
-  yum install srvadmin-argtable2 srvadmin-base srvadmin-deng srvadmin-hapi srvadmin-isvc srvadmin-itunnelprovider srvadmin-iws \
+  yum -y install srvadmin-argtable2 srvadmin-base srvadmin-deng srvadmin-hapi srvadmin-isvc srvadmin-itunnelprovider srvadmin-iws \
 srvadmin-jre srvadmin-omacore srvadmin-omcommon srvadmin-omilcore srvadmin-smcommon srvadmin-smweb srvadmin-standardAgent \
 srvadmin-storage srvadmin-storageservices srvadmin-storelib srvadmin-storelib-sysfs srvadmin-sysfsutils srvadmin-webserver srvadmin-xmlsup || print_error "ERROR - $LINENO - Failed to install Dell OMSA." 1
   cp /opt/dell/srvadmin/etc/omauth/omauth.el6{,.orig} || print_error "ERROR - $LINENO - Failed to install Dell OMSA."

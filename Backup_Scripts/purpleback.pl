@@ -3,8 +3,8 @@ use strict;
 use warnings;
 # Description: Custom backup software for my own network
 # Written by: Jeff White (jwhite530@gmail.com)
-# Version: 1
-# Last change: Initial version
+# Version: 1.1
+# Last change: Moved to encrypted backup directory, added sanity checking section for Linux OS option, changed rsync error checking into a subroutine
 
 # License:
 # This software is released under version three of the GNU General Public License (GPL) of the
@@ -193,33 +193,66 @@ sub connect_ssh {
 }
 
 
-# Create the transfer/backup statistics
-sub rsync_transfer_stats {
-  # Returns true on success and updates %transfer_stats hash and $data_transferred_kb
-  # Usage: rsync_transfer_stats($rsync_out_ref) # Array reference from $rsync_object->out
+# Check the exit status of rsync and get the transfer stats
+sub rsync_check_error {
+  # Returns true on success, undef on error
+  # The first arg should be a REFERENCE to an rsync object, the second should be
+  # the name of the backup ("Datastore", "Linux OS on cyan.jealwh.local", etc.)
+  # Usage: rsync_check_error(\$rsync_object, $backup_name)
 
-  my $rsync_out_ref;
-  unless ($rsync_out_ref = shift) {
-    log_error("Incorrect usage of rsync_transfer_stats()");
+  my ($rsync_object_ref, $backup_name);
+  unless (($rsync_object_ref = shift) and ($backup_name = shift)) {
+    log_error("Incorrect usage of rsync_check_error()");
     return;
   }
-
-  # Loop through each line of rsync's output and add it to %transfer_stats
-  for my $rsync_line (@$rsync_out_ref) {
-    if ($rsync_line =~ m/^Number of files:/) {
-      $transfer_stats{"Total number of files"} += (split(m/\s+/, $rsync_line))[3];
-    }
-    elsif ($rsync_line =~ m/^Number of files transferred:/) {
-      $transfer_stats{"Number of files transferred"} += (split(m/\s+/, $rsync_line))[4];
-    }
-    elsif ($rsync_line =~ m/^Total file size:/) {
-      $transfer_stats{"Total file size (GB)"} += sprintf("%.2f", (split(m/\s+/, $rsync_line))[3] / 1024 / 1024 / 1024);
-    }
-    elsif (($rsync_line =~ m/^Total bytes sent:/) or ($rsync_line =~ m/^Total bytes received:/)) {
-      $data_transferred_kb += sprintf("%.2f", (split(m/\s+/, $rsync_line))[3] / 1024);
-    }
+  
+  # Could we even exec the rsync object?
+  if (!$$rsync_object_ref) {
+    log_error("$backup_name backup failed, could not create rsync object\n");
+    print BOLD RED $@;
+    return;
   }
+  else {
+    my $rsync_status = $$rsync_object_ref->status;
 
+    if (($rsync_status != 0) and ($rsync_status != 24)) { # 24 == vanished source files
+      my $rsync_err_ref = $$rsync_object_ref->err;
+
+      log_error("Error '$rsync_status' from rsync during $backup_name backup\n");
+      log_error("$backup_name backup failed\n");
+      
+      foreach my $error_line (@$rsync_err_ref) {
+        log_error($error_line);
+      }
+        
+      return;
+    }
+    else {
+      log_info("$backup_name backup completed successfully\n") if ($verbose);
+    }
+
+    # Loop through each line of rsync's output, add it to %transfer_stats and print it to the log file
+    my $rsync_out_ref = $$rsync_object_ref->out;
+    
+    for my $rsync_line (@$rsync_out_ref) {
+      if ($rsync_line =~ m/^Number of files:/) {
+        $transfer_stats{"Total number of files/dirs"} += (split(m/\s+/, $rsync_line))[3];
+      }
+      elsif ($rsync_line =~ m/^Number of files transferred:/) {
+        $transfer_stats{"Number of files transferred"} += (split(m/\s+/, $rsync_line))[4];
+      }
+      elsif ($rsync_line =~ m/^Total file size:/) {
+        $transfer_stats{"Total file size (GB)"} += sprintf("%.2f", (split(m/\s+/, $rsync_line))[3] / 1024 / 1024 / 1024);
+      }
+      elsif (($rsync_line =~ m/^Total bytes sent:/) or ($rsync_line =~ m/^Total bytes received:/)) {
+        $data_transferred_kb += sprintf("%.2f", (split(m/\s+/, $rsync_line))[3] / 1024);
+      }
+    }
+    
+    print $LOG_FILE @$rsync_out_ref;
+    
+  }
+  
   return 1;
 }
 
@@ -359,22 +392,46 @@ if (($datastore_no_delete) or ($datastore_with_delete)) {
   my $ssh_object_teal;
   if ($ssh_object_teal = (connect_ssh("teal.jealwh.local"))) {
 
-    # Ensure /media/Backup is mounted on teal.jealwh.local
-    if ($ssh_object_teal->test("grep" => "-q" => "' /media/Backup '" => "/proc/mounts")) {
-      log_error("/media/Backup is not mounted on teal.jealwh.local, disabling datastore backup\n");
+    # Ensure /media/Backup and /media/OS_backups are mounted on teal.jealwh.local
+    if (
+      ($ssh_object_teal->test("grep" => "-q" => "' /media/Backup '" => "/proc/mounts")) or
+      ($ssh_object_teal->test("grep" => "-q" => "' /media/OS_backups '" => "/proc/mounts"))
+      ) {
+      log_error("Either /media/Backup or /media/OS_Backups is not mounted on teal.jealwh.local, disabling datastore backup\n");
       undef $datastore_with_delete;
       undef $datastore_no_delete;
-      undef $ssh_object_teal;
     }
     else {
-      print BOLD BLUE "/media/Backup mount check on teal.jealwh.local passed\n" if ($verbose);
+      print BOLD BLUE "/media/Backup and /media/OS_Backups mount check on teal.jealwh.local passed\n" if ($verbose);
     }
 
   }
   else {
-    log_error("Failed to create SSH connection to 'teal.jealwh.local' during sanity checking\n");
+    log_error("Failed to create SSH connection to 'teal.jealwh.local' during sanity checking, disabling datastore backup\n");
+    undef $datastore_with_delete;
+    undef $datastore_no_delete;
   }
+}
 
+# If in Linux OS mode, ensure things are mounted.
+if ((@linux_clients_no_delete) or (@linux_clients_with_delete)) {
+  my $ssh_object_cyan;
+  if ($ssh_object_cyan = (connect_ssh("cyan.jealwh.local"))) {
+
+    # Ensure /media/OS_backups is mounted on cyan.jealwh.local
+    if ($ssh_object_cyan->test("grep" => "-q" => "' /media/OS_backups '" => "/proc/mounts")) {
+      log_error("/media/OS_Backups is not mounted on cyan.jealwh.local, disabling Linux OS backup\n");
+      undef @linux_clients_no_delete;
+      undef @linux_clients_with_delete;
+    }
+    else {
+      print BOLD BLUE "/media/OS_Backups mount check on cyan.jealwh.local passed\n" if ($verbose);
+    }
+
+  }
+  else {
+    log_error("Failed to create SSH connection to 'cyanl.jealwh.local' during sanity checking, disabling Linux OS backup\n");
+  }
 }
 
 
@@ -392,6 +449,9 @@ if (($datastore_no_delete) or ($datastore_with_delete)) {
 
     # What is to be excluded?
     my @exclude_list = qw(
+      VM
+      OS_Backups.tc
+      OS_Backups.old
     );
 
     # Should we enable rsync's --delete?
@@ -406,6 +466,7 @@ if (($datastore_no_delete) or ($datastore_with_delete)) {
     $do_verbose = $verbose if ($verbose);
     $do_debug = 1 if ($verbose >= 3);
 
+    # Transfer /media/Data
     # Create the rsync object and set default options
     my $rsync_object = File::Rsync->new({
       "archive" => 1,
@@ -415,7 +476,7 @@ if (($datastore_no_delete) or ($datastore_with_delete)) {
       "partial" => 1,
       "stats" => 1,
       "hard-links" => 1,
-      "acls" => 1,
+#       "acls" => 1,
 #       "xattrs" => 1,
       "verbose" => $do_verbose,
       "debug" => $do_debug,
@@ -424,43 +485,45 @@ if (($datastore_no_delete) or ($datastore_with_delete)) {
     });
 
     # Do the rsync
-    eval {
+    if ($rsync_object) {
       $rsync_object->exec({
-        "src" => "/media/Data/",
-        "dest" => "teal.jealwh.local:/media/Backup/",
+        "src" => "/media/Data/Test/",
+        "dest" => "teal.jealwh.local:/media/Backup/Test/",
         "exclude" => \@exclude_list,
       });
-    };
-
-    # Could we even exec the rsync object?
-    if (!$rsync_object) {
-      log_error("Datastore backup failed, could not create rsync object\n");
-      print BOLD RED $@;
     }
-    else {
-      my $rsync_status = $rsync_object->status;
 
-      if (($rsync_status != 0) and ($rsync_status != 24)) { # 24 == vanished source files
-        my $rsync_err_ref = $rsync_object->err;
+    # Check the status and get the transfer stats
+    rsync_check_error(\$rsync_object, "Datastore");
 
-        log_error("Error '$rsync_status' from rsync during datastore transfer\n");
-        log_error("Datastore backup failed\n");
-          foreach my $error_line (@$rsync_err_ref) {
-            log_error($error_line);
-          }
-      }
-      else {
-        log_info("Datastore backup completed successfully\n") if ($verbose);
-      }
+    # Transfer /media/OS_Backups
+    # Create the rsync object and set default options
+    $rsync_object = File::Rsync->new({
+      "archive" => 1,
+      "inplace" => 1,
+      "delete" => $do_delete,
+      "max-delete" => 50000,
+      "partial" => 1,
+      "stats" => 1,
+      "hard-links" => 1,
+#       "acls" => 1,
+#       "xattrs" => 1,
+      "verbose" => $do_verbose,
+      "debug" => $do_debug,
+      "rsh" => "ssh -o PreferredAuthentications=publickey -l backupuser -i /home/backupuser/.ssh/id_rsa -o StrictHostKeyChecking=no",
+      "rsync-path" => "sudo rsync",
+    });
 
-      # Get the transfer stats
-      my $rsync_out_ref = $rsync_object->out;
-      if ($rsync_out_ref) {
-        rsync_transfer_stats($rsync_out_ref);
-        print $LOG_FILE @$rsync_out_ref;
-      }
-
+    # Do the rsync
+    if ($rsync_object) {
+      $rsync_object->exec({
+        "src" => "/media/OS_Backups/",
+        "dest" => "teal.jealwh.local:/media/OS_Backups/",
+      });
     }
+
+    # Check the status and get the transfer stats
+    rsync_check_error(\$rsync_object, "OS_Backups");
 
   }
   else {
@@ -495,7 +558,7 @@ sub backup_linux_os {
   log_info("Testing connection to $linux_client for Linux OS backup\n") if ($verbose);
   if (connect_ssh($linux_client)) {
 
-    make_path("/media/Data/OS_Backups/$linux_client/OS/") unless (-d "/media/Data/OS_Backups/$linux_client/OS/");
+    make_path("/media/OS_Backups/$linux_client/OS/") unless (-d "/media/OS_Backups/$linux_client/OS/");
 
     # What is to be excluded?
     my @exclude_list = qw(
@@ -538,49 +601,23 @@ sub backup_linux_os {
       "partial" => 1,
       "stats" => 1,
       "hard-links" => 1,
-      "acls" => 1,
+#       "acls" => 1,
 #       "xattrs" => 1,
       "rsh" => "ssh -o PreferredAuthentications=publickey -l backupuser -i /home/backupuser/.ssh/id_rsa -o StrictHostKeyChecking=no",
       "rsync-path" => "sudo rsync",
     });
 
     # Do the rsync
-    eval {
+    if ($rsync_object) {
       $rsync_object->exec({
         "src" => "$linux_client:/",
-        "dest" => "/media/Data/OS_Backups/$linux_client/OS/",
+        "dest" => "/media/OS_Backups/$linux_client/OS/",
         "exclude" => \@exclude_list,
       });
-    };
-
-    # Check for failure of the rsync
-    if (!$rsync_object) {
-      log_error("Linux OS backup of $linux_client failed, could not create rsync object\n");
-      print BOLD RED $@;
     }
-    else {
-      my $rsync_status = $rsync_object->status;
 
-      if (($rsync_status != 0) and ($rsync_status != 24)) { # 24 == vanished source files
-        my $rsync_err_ref = $rsync_object->err;
-
-        log_error("Error '$rsync_status' from rsync during transfer for Linux OS backup on $linux_client\n");
-          foreach my $error_line (@$rsync_err_ref) {
-            log_error($error_line);
-          }
-      }
-      else {
-        log_info("Linux OS backup on $linux_client completed successfully\n");
-      }
-
-      # Get the transfer stats
-      my $rsync_out_ref = $rsync_object->out;
-      if ($rsync_out_ref) {
-        rsync_transfer_stats($rsync_out_ref);
-        print $LOG_FILE @$rsync_out_ref;
-      }
-
-    }
+    # Check the status and get the transfer stats
+    rsync_check_error(\$rsync_object, "$linux_client OS");
 
   }
   else {

@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 # Description: Display the status of compute nodes via either plain text or HTML
 # Written By: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 1.5
-# Last change: Removed failure count from the display, added a hover-box with length of time on errors
+# Version: 1.5.1
+# Last change: Removed style.css comments, see the style.css file now
 
 ##### License
 # This script is released under version three (3) of the GNU General Public License (GPL) of the 
@@ -204,61 +204,3 @@ print <<EOI unless ($text_mode);
 </body>
 </html>
 EOI
-
-
-
-# Here's what is in style.css
-# # table.fancy {
-# #   margin: auto;
-# #   background: whitesmoke;
-# #   border-collapse: collapse;
-# #   width: 80%
-# #   
-# # }
-# # table.fancy th, table.fancy td {
-# #   border: 1px silver gainsboro;
-# #   padding: 0.2em;
-# # }
-# # table.fancy th {
-# #   background: #bcbfc2;
-# #   text-align: left;
-# # }
-# # tr:nth-child(odd) {
-# #   background: gainsboro;
-# # }
-# # table.fancy tr:hover td {
-# #    background: mintcream !important;
-# # }
-# # table.fancy caption {
-# #   margin-left: inherit;
-# #   margin-right: inherit;
-# # }
-# # 
-# # body {background-color:#A4A4A4}
-# # 
-# # .title {
-# #         text-align: center;
-# #         font-family: Arial, Helvetica, sans-serif;
-# #         font-size: 20px;
-# #         color: #F6F2F2;
-# #         }
-# # 
-# # span.dropt:hover {
-# #   text-decoration: none; background: #ffffff; z-index: 6;
-# # }
-# # span.dropt span {
-# #   position: absolute; left: -9999px;
-# #   margin: 20px 0 0 0px; padding: 3px 3px 3px 3px;
-# #   border-style:solid; border-color:black; border-width:1px; z-index: 6;
-# # }
-# # span.dropt:hover span {
-# #   left: 2%; background: #ffffff;
-# # }
-# # span.dropt span {
-# #   position: absolute; left: -9999px;
-# #   margin: 4px 0 0 0px; padding: 3px 3px 3px 3px;
-# #   border-style:solid; border-color:black; border-width:1px;
-# # }
-# # span.dropt:hover span {
-# #   margin: 20px 0 0 170px; background: #ffffff; z-index:6;
-# # }

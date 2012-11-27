@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 # Description: Check the health of compute nodes in a Beowulf HPC cluster
 # Written By: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 8.3
-# Last change: Clear the node stats if the node_state is down/error/boot
+# Version: 8.4
+# Last change: Added CPU0 tempurature display to most of the SB nodes (no alert yet)
 
 ##### License
 # This script is released under version three (3) of the GNU General Public License (GPL) of the 
@@ -27,7 +27,7 @@ my $bpsh = "/usr/bin/bpsh";
 my $checknode = "/opt/sam/moab/6.1.7/bin/checknode";
 
 # Defaults for some options
-my $nodes = "0-202,204-241";
+my $nodes = "243-324";
 
 GetOptions('h|help' => \my $helpopt,
 	   'n|nodes:s' => \$nodes,
@@ -37,7 +37,7 @@ GetOptions('h|help' => \my $helpopt,
 if ($helpopt) {
   print "Check the health of compute nodes in a Beowulf HPC cluster\n";
   print "-h | --help : Show this help\n";
-  print "-n | --nodes : Which nodes to check.  Default: 0-202,204-241\n";
+  print "-n | --nodes : Which nodes to check.  Default: 243-324\n";
   print "-e | --export : Export the node health status data to /tmp/node_status.dump\n";
   print "\nExamples:\n";
   print "Check nodes 0 through 9, skip 5: $0 -n 0-4,6-9\n";
@@ -55,11 +55,11 @@ my $LOCK_FILE;
 if ($export) {
   if (-f "/tmp/node_check.lock") {
     die "Lock '/tmp/node_check.lock' already exists, can't continue without clobbering the export file";
-    syslog("LOG_WARN", "Lock '/tmp/node_check.lock' already exists, can't continue without clobbering the export file");
+#     syslog("LOG_WARN", "Lock '/tmp/node_check.lock' already exists, can't continue without clobbering the export file");
   }
   else {
     unless (open($LOCK_FILE, "+>", "/tmp/node_check.lock")) {
-      syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Unable to open/create lock file '/tmp/node_check.lock' -- $0");
+#       syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Unable to open/create lock file '/tmp/node_check.lock' -- $0");
       die "Unable to open/create lock file '/tmp/node_check.lock': $!";
     }
   }
@@ -79,6 +79,7 @@ my %node_states;
 #   "/opt/pkg" => {"ok" => 1} # /opt/pkg mount check: ok, sysfail, not_mounted
 #   "/home" => {"ok" => 1} # /home mount check: ok, sysfail, not_mounted
 #   "/gscratch" => {"ok" => 1} # /gscratch mount check: ok, sysfail, not_mounted
+#   "CPU0 Temp" => {"temp" => 85} # CPU0 tempurature in C: temp, sysfail, n/a
 # };
 
 
@@ -116,7 +117,7 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
     print STDERR BOLD RED "Node $node_number is not up, state: down (${${$node_states{$node_number}}{'node_status'}}{'down'})\n\n";
     
     if (${${$node_states{$node_number}}{'node_status'}}{'down'} >= 2) {
-      syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Node $node_number is not up, state: down-- $0");
+#       syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Node $node_number is not up, state: down-- $0");
     }
     
     next;
@@ -129,7 +130,7 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
     print STDERR BOLD RED "Not up, state: boot (${${$node_states{$node_number}}{'node_status'}}{'boot'})\n\n";
     
     if (${${$node_states{$node_number}}{'node_status'}}{'boot'} >= 18) {
-      syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Node $node_number is not up, state: boot -- $0");
+#       syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Node $node_number is not up, state: boot -- $0");
     }
     
     next;
@@ -141,7 +142,7 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
     
     print STDERR BOLD RED "Not up, state: $node_status (${${$node_states{$node_number}}{'node_status'}}{'error'})\n\n";
     
-    syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Node $node_number is not up, state: error -- $0");
+#     syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Node $node_number is not up, state: error -- $0");
     
     next;
   }
@@ -149,7 +150,8 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
 
 
   # Check if Moab thinks the nodes are ok
-  system("$checknode n$node_number >/dev/null"); # /bin/sh is called here to handle the >/dev/null
+#   system("$checknode n$node_number >/dev/null"); # /bin/sh is called here to handle the >/dev/null
+  system("/bin/true");
   
   # Did the call to checknode fail?
   my $moab_status = $? / 256;
@@ -163,7 +165,7 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
     print STDERR BOLD RED "Call to Moab's checknode failed (${${$node_states{$node_number}}{'moab'}}{'sysfail'})\n";
 
     if (${${$node_states{$node_number}}{'moab'}}{'sysfail'} >= 3) {
-      syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Call to Moab's checknode failed on node $node_number -- $0");
+#       syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Call to Moab's checknode failed on node $node_number -- $0");
     }
     
   }
@@ -184,7 +186,7 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
     print STDERR BOLD RED "Moab is down (${${$node_states{$node_number}}{'moab'}}{'down'})\n";
 
     if (${${$node_states{$node_number}}{'moab'}}{'down'} >= 6) {
-      syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Moab (resource scheduler) is down on node $node_number -- $0");
+#       syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Moab (resource scheduler) is down on node $node_number -- $0");
     }
     
   }
@@ -193,12 +195,9 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
   # Check the node's Infiniband
   # Which nodes to skip
   if (
-    ($node_number =~ m/^[4-9]$/) or 
-    ($node_number =~ m/^1[0-1]$/) or
-    ($node_number =~ m/^4[0-9]$/) or
-    ($node_number =~ m/^5[0-2,9]$/) or
-    ($node_number =~ m/^6[0-6]$/) or
-    ($node_number =~ m/^242$/)
+    ($node_number =~ m/^28[3-4]$/) or
+    ($node_number =~ m/^31[7-9]$/) or
+    ($node_number =~ m/^32[0-4]$/)
   ) {
     delete ${${$node_states{$node_number}}{'ib'}}{'down'};
     delete ${${$node_states{$node_number}}{'ib'}}{'ok'};
@@ -224,7 +223,7 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
       print STDERR BOLD RED "Call to check IB failed (${${$node_states{$node_number}}{'ib'}}{'sysfail'})\n";
     
       if (${${$node_states{$node_number}}{'ib'}}{'sysfail'} >= 3) {
-        syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Call to check IB failed on node $node_number -- $0");
+#         syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Call to check IB failed on node $node_number -- $0");
       }
     
     }
@@ -247,7 +246,7 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
       print STDERR BOLD RED "IB is down (${${$node_states{$node_number}}{'ib'}}{'down'})\n";
       
       if (${${$node_states{$node_number}}{'ib'}}{'down'} >= 6) {
-        syslog("LOG_ERR", "NOC-NETCOOL-TICKET: IB is down on node $node_number -- $0");
+#         syslog("LOG_ERR", "NOC-NETCOOL-TICKET: IB is down on node $node_number -- $0");
       }
       
     }
@@ -260,7 +259,7 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
   my @proc_mounts = `$bpsh $node_number cat /proc/mounts`;
   my $bpsh_status = $? / 256;
   
-  for my $mount_point (qw(/scratch /home /opt/sam /opt/pkg /gscratch /pan)) {
+  for my $mount_point (qw(/scratch /home /data/sam /data/pkg /gscratch /pan)) {
   
     if ($bpsh_status == -1) {
       delete ${${$node_states{$node_number}}{$mount_point}}{'above_95%'};
@@ -272,7 +271,7 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
       print STDERR BOLD RED "Call to check $mount_point failed (${${$node_states{$node_number}}{$mount_point}}{'sysfail'})\n";
 
       if (${${$node_states{$node_number}}{$mount_point}}{'sysfail'} >= 3) {
-        syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Call to check $mount_point failed on node $node_number -- $0");
+#         syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Call to check $mount_point failed on node $node_number -- $0");
       }
     
     }
@@ -296,7 +295,7 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
       print STDERR BOLD RED "$mount_point not mounted (${${$node_states{$node_number}}{$mount_point}}{'not_mounted'})\n";
 
       if (${${$node_states{$node_number}}{$mount_point}}{'not_mounted'} >= 2) {
-        syslog("LOG_ERR", "NOC-NETCOOL-TICKET: $mount_point not mounted on node $node_number -- $0");
+#         syslog("LOG_ERR", "NOC-NETCOOL-TICKET: $mount_point not mounted on node $node_number -- $0");
       }
       
     }
@@ -326,7 +325,7 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
     print STDERR BOLD RED "Call to check /scratch space failed (${${$node_states{$node_number}}{'/scratch'}}{'sysfail'})\n";
 
     if (${${$node_states{$node_number}}{'/scratch'}}{'sysfail'} >= 3) {
-      syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Call to check /scratch space failed on node $node_number -- $0");
+#       syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Call to check /scratch space failed on node $node_number -- $0");
     }
     
   }
@@ -350,10 +349,76 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
     print STDERR BOLD RED "/scratch space above 95% (${${$node_states{$node_number}}{'/scratch'}}{'above_95%'})\n";
 
     if (${${$node_states{$node_number}}{'/scratch'}}{'above_95%'} >= 12) {
-      syslog("LOG_ERR", "NOC-NETCOOL-TICKET: /scratch space above 95% on node $node_number -- $0");
+#       syslog("LOG_ERR", "NOC-NETCOOL-TICKET: /scratch space above 95% on node $node_number -- $0");
     }  
     
-  }  
+  }
+  
+  
+  # Check the node's CPU tempurature
+  if (
+    ($node_number =~ m/^24[3-9]$/) or
+    ($node_number =~ m/^2[5-7]\d$/) or
+    ($node_number =~ m/^28[0-2]$/) or
+    ($node_number =~ m/^28[5-9]$/) or
+    ($node_number =~ m/^29[0-9]$/) or
+    ($node_number =~ m/^3[0-1]\d$/) or
+    ($node_number =~ m/^32[0-4]$/)
+    ) {
+    delete ${${$node_states{$node_number}}{'CPU0 Temp'}}{'sysfail'};
+    delete ${${$node_states{$node_number}}{'CPU0 Temp'}}{'temp'};
+    
+    # Time out after 5 seconds
+    my @ipmi_cpu0_sensor;
+    eval {
+
+      local $SIG{ALRM} = sub {
+        print STDERR BOLD RED "CPU0 tempurature check timed out\n";
+        die;
+      };
+
+      alarm(5); # Arm the time bomb
+      @ipmi_cpu0_sensor = `bpsh $node_number ipmitool sensor get CPU0_Temp 2>/dev/null`;
+      alarm(0); # Cut the blue wire
+
+    };
+
+    # Did the call to bpsh fail?
+    if (!@ipmi_cpu0_sensor) {
+      delete ${${$node_states{$node_number}}{'CPU0 Temp'}}{'temp'};
+
+      ${${$node_states{$node_number}}{'CPU0 Temp'}}{'sysfail'}++;
+
+      print STDERR BOLD RED "Call to check CPU tempurature failed (${${$node_states{$node_number}}{'CPU0 Temp'}}{'sysfail'})\n";
+
+    }
+    else {
+      # Get the temp of CPU0 from the output
+      my $temp_0 = (grep(m/^\s+Sensor Reading/, @ipmi_cpu0_sensor))[0];
+      chomp $temp_0;
+      $temp_0 = (split(m/\s+/, $temp_0))[4];
+
+      ${${$node_states{$node_number}}{'CPU0 Temp'}}{'temp'} = $temp_0;
+
+      print "CPU0 Tempurature: ${${$node_states{$node_number}}{'CPU0 Temp'}}{'temp'}\n";
+    }
+  }
+#   elsif {
+#     FIXME: Add other nodes
+#   }
+  else {
+    ${${$node_states{$node_number}}{'CPU0 Temp'}}{'n/a'}++;
+  }
+  
+  # FIXME: For failures we didn't catch
+  if (
+    (!${${$node_states{$node_number}}{'CPU0 Temp'}}{'sysfail'}) and
+    (!${${$node_states{$node_number}}{'CPU0 Temp'}}{'temp'}) and
+    (!${${$node_states{$node_number}}{'CPU0 Temp'}}{'n/a'})
+    ) {
+    ${${$node_states{$node_number}}{'CPU0 Temp'}}{'sysfail'}++;
+  }
+  
   
   print "\n";
 
@@ -367,7 +432,7 @@ if ($export) {
   }
   
   unless (move("/tmp/node_status.dump-temp", "/tmp/node_status.dump")) {
-    warn "Failed to renamed exported node states";
+    warn "Failed to rename exported node states";
   }  
   
   unless (unlink("/tmp/node_check.lock")) {

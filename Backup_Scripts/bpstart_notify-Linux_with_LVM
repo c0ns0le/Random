@@ -14,6 +14,7 @@
 # 28-Aug-2011 bmo2 Add /global/bbcontent3 filesystem
 #
 # 05-Mar-2012 jaw171 Convert to RHEL, add LVM, modify for use with Netflow job
+# 2012-4-18 - jaw171 - Use a consistency group instead of two mappings.
 #
 # Parameters:
 #
@@ -53,7 +54,7 @@ readonly MAILTO="backup-team@list.pitt.edu"
 #
 
 readonly SVC="svc-clus-1a.cssd.pitt.edu."
-readonly SNAPFCNAMES="flowdata-p1-map flowdata-p2-map"
+readonly SNAPFCCONSISTNAME="flowdata-group"
 readonly NCALERT="NOC-NETCOOL-TICKET"
 readonly LOGFILE=/var/log/san-backup-netflow.log
 readonly PGM=$(/bin/basename "${0}")
@@ -92,38 +93,31 @@ FatalError()
 Log "Invoked with $1 $2 $3 $4"
 
 #
-# Start the flashcopy mappings
+# Start the flashcopy consistency group
 #
 
-for Mapping in $SNAPFCNAMES
-do
-  # Note that in case of any FlashCopy errors, we don't abort but instead we
-  # exit this loop and try to restart everything
+Log "Starting FlashCopy consistency group $SNAPFCCONSISTNAME"
 
-  Log "Starting FlashCopy mapping ${Mapping}"
+Result=$( $SSH -i /.ssh/snapshot_id_rsa -l admin $SVC "svctask startfcconsistgrp -prep $SNAPFCCONSISTNAME" )
+Status=$?
+if [[ $Status -ne 0 ]]; then
+  FatalError "Error $Status starting FlashCopy consistency group $SNAPFCCONSISTNAME for policy ${2}"
+  exit 1
+fi
 
-  Result=$( $SSH -i /.ssh/snapshot_id_rsa -l admin $SVC "svctask startfcmap -prep $Mapping" )
-  if [[ $? -ne 0 ]]; then
-    FatalError "Error $? starting FlashCopy mapping $Mapping for policy ${2}"
-    exit 1
-    break
-  fi
-
-  # Verify that the mapping is in the expected state
+# Verify that the mapping is in the expected state
  
-  Result=$( $SSH -i /.ssh/snapshot_id_rsa -l admin $SVC "svcinfo lsfcmap $Mapping" | $GREP "^status copying$" )
-  if [[ $? -ne 0 ]]; then
-    FatalError "Error $? obtaining state of mapping $Mapping for policy ${2}"
-    exit 1
-    break
-  fi
+Result=$( $SSH -i /.ssh/snapshot_id_rsa -l admin $SVC "svcinfo lsfcconsistgrp $SNAPFCCONSISTNAME" | $GREP "^status copying$" )
+Status=$?
+if [[ $Status -ne 0 ]]; then
+  FatalError "Error $Status obtaining state of consistency group $SNAPFCCONSISTNAME for policy ${2}"
+  exit 1
+fi
 
-  if [[ "$Result" != "status copying" ]]; then
-    FatalError "FlashCopy mapping $Mapping not in copying state for policy ${2}"
-    exit 1
-    break
-  fi
-done
+if [[ "$Result" != "status copying" ]]; then
+  FatalError "FlashCopy consistency group $SNAPFCCONSISTNAME is not in copying state for policy ${2}"
+  exit 1
+fi
 
 #
 # Scan for the new LVM physical volumes, assemble the VG, make the LV active, then check that the LV exists

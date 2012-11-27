@@ -16,6 +16,13 @@
 # 05-Mar-2012 jaw171 Convert to RHEL, add LVM, modify for use with Netflow job
 #
 # 04-Apr-2012 jaw171 Flush multipath maps after devices are removed.
+# 2012-4-18 - jaw171 - Use a consistency group instead of two mappings.
+# 2012-7-27 - jaw171 - Add 'vgexport' to help with the removal the PVs
+#
+# 2012-09-26 bhc Regardless of NetBackup status, stop FC mappings and
+#                do cleanup.
+#
+# 2012-11-27 jaw171 Delete underlying block devices of VGs
 #
 # Parameters:
 #
@@ -41,6 +48,7 @@ readonly VGSCAN=/sbin/vgscan
 readonly LVSCAN=/sbin/lvscan
 readonly LVCHANGE=/sbin/lvchange
 readonly VGCHANGE=/sbin/vgchange
+readonly VGEXPORT=/sbin/vgexport
 readonly MULTIPATH=/sbin/multipath
 
 #
@@ -62,7 +70,7 @@ readonly SVC="svc-clus-1a.cssd.pitt.edu."
 # Lists of FlashCopy mapping names and mount points
 #
 
-readonly SNAPFCNAMES="flowdata-p1-map flowdata-p2-map"
+readonly SNAPFCCONSISTNAME="flowdata-group"
 readonly MP="flowtraq0"
 
 #
@@ -89,14 +97,9 @@ SeriousError()
 #   $MAILX -s "${1}" "${MAILTO}" < /dev/null
 }
 
-# Log invocation parameters and check backup status ($5)
+# Log invocation parameters
 
 Log "Invoked with $1 $2 $3 $4 $5"
-
-if [[ $5 -ne 0 ]]; then
-  SeriousError "NetBackup completion status is $5 - check backup job status"
-  exit 1 # Bail out if the job didn't complete successfully.
-fi
 
 #
 # Process each filesystem
@@ -131,20 +134,43 @@ if [[ $? != 0 ]];then
 fi
 sleep 2
 
-# Stop the mappings
-for Mapping in $SNAPFCNAMES
-do
-  Log "Stopping FlashCopy mapping $Mapping"
-  Result=$( $SSH -i /.ssh/snapshot_id_rsa -l admin $SVC "svctask stopfcmap $Mapping" )
-  Status=$?
-  if [[ $Status -ne 0 ]]; then
-    SeriousError "Error $Status stopping FlashCopy mapping $Mapping"
-    Log "Text returned from stopfcmap: $Result"
+# Export the VG
+$VGEXPORT "vg_flowtraq"
+if [[ $? != 0 ]];then
+  FatalError "Failed to export VG vg_flowtraq in policy ${2}"
+  exit 1
+fi
+sleep 2
+
+# Stop the consistency group
+Log "Stopping FlashCopy consistency group $SNAPFCCONSISTNAME"
+Result=$( $SSH -i /.ssh/snapshot_id_rsa -l admin $SVC "svctask stopfcconsistgrp $SNAPFCCONSISTNAME" )
+Status=$?
+if [[ $Status -ne 0 ]]; then
+  SeriousError "Error $Status stopping FlashCopy consistency group $SNAPFCCONSISTNAME"
+  Log "Text returned from stopfcmap: $Result"
+fi
+
+# Loop though every underlying block device of the VG
+sleep 5
+Log "Removing block devices from $vg_name"
+pvdisplay --columns | grep " vg_flowtraq " | cut -d' ' -f3 | while read -r block_device;do
+
+  # Chop off the path
+  block_device=$(echo "$block_device" | sed 's/^.*\/dev\///')
+
+  # Delete the block device if we could find it
+  if [ -e "/sys/block/$block_device/device/delete" ]; then
+    Log "Deleting block device $block_device"
+    echo "1" > /sys/block/$block_device/device/delete
+  else
+    SeriousError "Unable to find /sys/ delete file for block device $block_device"
   fi
+
 done
 
 # Flush the now unused multipath maps
-sleep 300
+sleep 30
 $MULTIPATH -F
 Status=$?
 if [[ $Status -ne 0 ]]; then

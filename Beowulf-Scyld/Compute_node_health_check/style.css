@@ -5,16 +5,18 @@ table.fancy {
   width: 80%
   
 }
-table.fancy th, table.fancy td {
+table.fancy th, table.fancy td, table.fancy thead th, table.fancy thead td {
   border: 1px silver gainsboro;
+  text-align: center;
   padding: 0.2em;
+}
+tr:nth-child(odd) {
+  background: blue;
+  background: gainsboro;
 }
 table.fancy th {
   background: #bcbfc2;
   text-align: left;
-}
-tr:nth-child(odd) {
-  background: gainsboro;
 }
 table.fancy tr:hover td {
    background: mintcream !important;
@@ -32,6 +34,7 @@ body {background-color:#A4A4A4}
         font-size: 20px;
         color: #F6F2F2;
         }
+
 
 span.dropt:hover {
   text-decoration: none; background: #ffffff; z-index: 6;

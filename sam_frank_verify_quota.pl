@@ -3,8 +3,8 @@ use strict;
 use warnings;
 # Description: Verify filesystems quotas are correct and set them if not
 # Written by: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 1
-# Last change: Inital version
+# Version: 1.2
+# Last change: Renamed storage servers
 
 # License
 # This script is released under version three of the GNU General Public License (GPL) of the 
@@ -39,19 +39,47 @@ if ($helpopt) {
 # Determine what our LDAP quota attribute is and which local filesystem we should use
 my ($filesystem, $quota_attr);
 my $hostname = hostname();
-if ($hostname eq "storage0.frank.sam.pitt.edu") {
-  $filesystem = "/data";
-  $quota_attr = "quotaHome0";
-  print "Partner node: storage4\n";
+if ($hostname eq "s-home2b.frank.sam.pitt.edu") {
+  $filesystem = "/data/home2";
+  $quota_attr = "quotaHome2";
+  print "Partner node: s-home2a\n";
 }
-elsif ($hostname eq "storage4.frank.sam.pitt.edu") {
+elsif ($hostname eq "s-home0b.frank.sam.pitt.edu") {
   $filesystem = "/data/home";
   $quota_attr = "quotaHome0";
-  print "Partner node: storage0\n";
+  print "Partner node: s-home0a\n";
+}
+elsif ($hostname eq "s-home1a.frank.sam.pitt.edu") {
+  $filesystem = "/data/home1";
+  $quota_attr = "quotaHome1";
+  print "Partner node: s-home1b\n";
+}
+elsif ($hostname eq "s-home1b.frank.sam.pitt.edu") {
+  $filesystem = "/data/home1";
+  $quota_attr = "quotaHome1";
+  print "Partner node: s-home1a\n";
+}
+elsif ($hostname eq "s-home0a.frank.sam.pitt.edu") {
+  $filesystem = "/data/home";
+  $quota_attr = "quotaHome0";
+  print "Partner node: s-home0b\n";
+}
+elsif ($hostname eq "s-misc0.frank.sam.pitt.edu") {
+  print "Storage5 has no quotas.\n";
+  exit;
+}
+elsif ($hostname eq "s-home2a.frank.sam.pitt.edu") {
+  $filesystem = "/data/home2";
+  $quota_attr = "quotaHome2";
+  print "Partner node: s-home2b\n";
 }
 elsif ($hostname eq "headnode1.frank.sam.pitt.edu") {
   $filesystem = "/data/gscratch1";
   $quota_attr = "quotaGscratch1";
+}
+elsif ($hostname eq "login0.frank.sam.pitt.edu") {
+  $filesystem = "/data/gscratch0";
+  $quota_attr = "quotaGscratch0";
 }
 else {
   die "$hostname is not a known/supported storage node\n";

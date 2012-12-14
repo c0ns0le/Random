@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 #
 # vpnc_daemon     This script starts and stop vpnc_daemon
 #
@@ -18,8 +18,8 @@
 ### END INIT INFO
 
 # Written by: Jeff White (jwhite530@gmail.com)
-# Version: 1
-# Last change: Initial version
+# Version: 1.1
+# Last change: Switched to /bin/bash, changed status scheck to send signal 0
 
 # License
 # This script is released under version three of the GNU General Public License (GPL) of the 
@@ -37,11 +37,11 @@ program="/usr/local/bin/vpnc_daemon.pl"
 function check_status {
   # Returns true if the daemon is running, false otherwise
   
-  if [ -f "/var/run/vpncd.pid" ];then
+  if [ -f "$pid_file" ];then
   
-    pid=$(cat /var/run/vpncd.pid)
+    pid=$(cat "$pid_file")
     
-    if grep -q '^Name:.*perl' /proc/$pid/status;then
+    if kill -0 $pid;then
       true
     else
       false

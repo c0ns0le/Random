@@ -145,7 +145,7 @@ scpbin="scp"
 script=${0##*/}
 log=/var/log/backup/$($datebin +%Y-%m-%d)-$script.log
 rsyncbkup="backupuser@192.168.10.150::Backup"  #This is where data will be backed up to.
-bkupdir="/media/Data/Backup" #Local path to the backup directory here.  This should match the directory that $rsyncbkup leads to.
+bkupdir="/media/Data/OS_Backups" #Local path to the backup directory here.  This should match the directory that $rsyncbkup leads to.
 sshuser="backupuser"
 sshport="22"
 email="jwhite530.auto@gmail.com" #E-mail used for notifications if enabled.
@@ -858,9 +858,9 @@ if [ "$dataopt" = "1" -o "$datadeleteopt" = "1" ];then #Datastore section
   echo "$($time) - Starting remote commands." 1>>$log
   echo "$($time) - Starting rsync on main datastore." 1>>$log
   if [ "$datadeleteopt" = "1" ];then
-    $sudobin $rsyncbin -a --stats --exclude "VM" --exclude "temp2.tc" --delete-before -e "$sudobin -u $sshuser $sshbin -l $sshuser -p $sshport" --rsync-path="$sudobin $rsyncbin" /media/Data/ Teal:/media/Backup 1>>$log || _printerr "ERROR - $LINENO - Data backup failed!"
+    $sudobin $rsyncbin -a --stats --exclude "OS_Backups" --delete-before -e "$sudobin -u $sshuser $sshbin -l $sshuser -p $sshport" --rsync-path="$sudobin $rsyncbin" /media/Data/ Teal:/media/Backup 1>>$log || _printerr "ERROR - $LINENO - Data backup failed!"
   elif [ "$dataopt" = "1" ];then
-    $sudobin $rsyncbin -a --stats --exclude "VM" --exclude "temp2.tc" -e "$sudobin -u $sshuser $sshbin -l $sshuser -p $sshport" --rsync-path="$sudobin $rsyncbin" /media/Data/ Teal:/media/Backup 1>>$log || _printerr "ERROR - $LINENO - Data backup failed!"
+    $sudobin $rsyncbin -a --stats --exclude "OS_Backups" -e "$sudobin -u $sshuser $sshbin -l $sshuser -p $sshport" --rsync-path="$sudobin $rsyncbin" /media/Data/ Teal:/media/Backup 1>>$log || _printerr "ERROR - $LINENO - Data backup failed!"
   fi
 fi
 

@@ -18,8 +18,8 @@
 ### END INIT INFO
 
 # Written by: Jeff White (jwhite530@gmail.com)
-# Version: 1.1
-# Last change: Switched to /bin/bash, changed status scheck to send signal 0
+# Version: 1.2
+# Last change: Added fall through to the case statement to display help text on invalid usage
 
 # License
 # This script is released under version three of the GNU General Public License (GPL) of the 
@@ -133,5 +133,8 @@ case "$1" in
     
   restart)
     daemon_stop && daemon_start
+    ;;
+  *)
+    echo "$0 {start|stop|restart|status}"
     ;;
 esac

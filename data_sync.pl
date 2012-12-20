@@ -3,8 +3,10 @@ use strict;
 use warnings;
 # Description: Daemon to sync a directory between two systems
 # Written by: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 1.7
-# Last change: Removed time states that were not being used.
+# Version: 1.8
+# Last change: Added -f (foreground) option to not daemonize, switch STDOUT and STDERR to /dev/null when daemonizing, 
+# added -d (delete) option to control rsync's --delete, wrote a better sleep function due to issues with system()
+# and SIGINT and to deal with perl's interruptable sleep().
 
 # License
 # This script is released under version three of the GNU General Public License (GPL) of the 
@@ -17,7 +19,7 @@ use Getopt::Long;
 Getopt::Long::Configure("bundling");
 use Sys::Syslog qw(:DEFAULT setlogsock);
 use IO::Handle;
-use POSIX;
+use POSIX qw(WIFSIGNALED WTERMSIG setsid);
 use File::Rsync;
 use File::Path qw(make_path);
 
@@ -28,16 +30,21 @@ my $status_file = "/tmp/data_sync.status";
 # Don't change these
 $| = 1;
 my $verbose = 0;
+my $rsync_delete = 0;
 my %run_stats;
 
 GetOptions('h|help' => \my $helpopt,
            'v|verbose+' => \$verbose,
+           'f|foreground' => \my $foreground,
+           'd|delete' => \$rsync_delete,
           ) || die "Invalid usage, use -h for help.\n";
 
 if ($helpopt) {
   print "Daemon to sync a directory between two system.\n";
   print "License: GNU General Public License (GPL) v3.\n\n";
   print "Usage: $0 [options] {start|stop|status}\n"; 
+  print "-d | --delete : Enable rsync's --delete (default: off)\n";
+  print "-f | --foreground : Run in the foreground instead of daemonizing\n";
   print "-h | --help : Show this help\n";
   print "-v | --verbose : Enable verbosity\n";
   exit;
@@ -119,7 +126,7 @@ sub do_stuff {
   my $rsync_obj = File::Rsync->new({
     archive => 1,
     inplace => 1,
-    del => 0,
+    del => $rsync_delete,
   });
 
   # Get a array of group dirs
@@ -309,27 +316,38 @@ sub daemon_start {
   }
   $PIDFILE->autoflush;
   
-  # Daemonize
-  unless (chdir '/') {
-    log_error("Unable to chdir to /: $!");
-    die;
-  }
+  # Daemonize unless we were told not to
+  unless ($foreground) {
   
-  unless (open STDIN, '/dev/null') {
-    log_error("Unable to read from /dev/null: $!");
-    die;
-  }
-  
-  my $pid;
-  unless (defined($pid = fork)) {
-    log_error("Unable to fork: $!");
-    die;
-  }
-  exit if $pid;
-  
-  unless (POSIX::setsid()) {
-    log_error("Unable to start a new session.");
-    die;
+    unless (chdir '/') {
+      log_error("Unable to chdir to /: $!");
+      die;
+    }
+    
+    # Send STDOUT and STDERR to the log from now on
+    unless (open(STDOUT, ">>", $log_file)) {
+      log_error("Unable to open log file '$log_file'.");
+      die;
+    }
+    open STDERR, '>&STDOUT';
+    
+    unless (open STDIN, '/dev/null') {
+      log_error("Unable to read from /dev/null: $!");
+      die;
+    }
+    
+    my $pid;
+    unless (defined($pid = fork)) {
+      log_error("Unable to fork: $!");
+      die;
+    }
+    exit if $pid;
+    
+    unless (POSIX::setsid()) {
+      log_error("Unable to start a new session.");
+      die;
+    }
+    
   }
 
   unless (print $PIDFILE "$$\n") {
@@ -337,13 +355,6 @@ sub daemon_start {
     die;
   }
   close $PIDFILE;
-
-  # Send STDOUT and STDERR to the log from now on
-  unless (open(STDOUT, ">>", $log_file)) {
-    log_error("Unable to open log file '$log_file'.");
-    die;
-  }
-  open STDERR, '>&STDOUT';
 
   # Start the rsync
   $run_stats{"Run"} = 0;
@@ -385,12 +396,14 @@ sub daemon_start {
       log_info("Waiting '$run_sleep_second' seconds until starting the next run (sleep started at $sleep_start_datetime).");
       $run_stats{"Status"} = "Sleeping '$run_sleep_second' seconds before next run (will wake up at $waketime_datetime)";
 
-      # Perl's sleep() is interruptable so if we get a USR1 signal (as we do to check 
-      # our status) it wakes us up prematurely!
-      system("/bin/sleep", $run_sleep_second);
+      # Sleep.  If we wake with sleep time left, go back to sleep.
+      my $sleep_end_time = time() + $run_sleep_second;
+      
+      until(time() >= $sleep_end_time) {
+        sleep(600);
+      }
     }
   }
-
 }
 
 # Check that the daemon is running and print the status if it is
@@ -516,12 +529,12 @@ sub exit_on_signal {
   # Always exists without returning
   # Usage: exit_on_signal()
   
+  print "Caught signal, exiting\n";
+
   # Don't remove our files unless we are the daemon
   unless ($$ == get_pid()) {
     exit;
   }
-  
-  print "Caught signal, exiting\n" if ($verbose);
   
   unless (unlink($pidfile)) {
     log_error("Unable to remove '$pidfile'.");

@@ -3,8 +3,8 @@ use strict;
 use warnings;
 # Description: Daemon to create a persistent VPN connection with vpnc
 # Written by: Jeff White (jwhite530@gmail.com)
-# Version: 1
-# Last change: Initial version
+# Version: 1.1
+# Last change: Send STDOUT and STDERR to /dev/null when daemonizing
 
 # License
 # This script is released under version three of the GNU General Public License (GPL) of the 
@@ -231,19 +231,17 @@ unless ($foreground) {
     log_error("Unable to open /dev/null: $!");
     die;
   }
-  *STDOUT = $DEV_NULL;
-  *STDERR = $DEV_NULL;
+
+  unless ((open STDIN, '/dev/null') and (open STDOUT, '/dev/null') and (open STDERR, '/dev/null')) {
+    log_error("Unable to read from /dev/null: $!");
+    die;
+  }
 
   unless (chdir '/') {
     log_error("Unable to chdir to /: $!");
     die;
   }
-
-  unless (open STDIN, '/dev/null') {
-    log_error("Unable to read from /dev/null: $!");
-    die;
-  }
-
+  
   my $pid;
   unless (defined($pid = fork)) {
     log_error("Unable to fork: $!");

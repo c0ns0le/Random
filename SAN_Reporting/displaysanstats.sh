@@ -2,8 +2,8 @@
 shopt -s -o nounset
 #Description: Bash script to parse the output of senddiskstats.sh.
 #Written By: Jeff White of The Univeristy of Pittsburgh (jaw171@pitt.edu)
-# Version: 1.0
-# Last change: Added ASM disk exclusion to the prdrc boxes
+# Version: 1.1
+# Last change: Removed old server-specific parsing and fixed a pug with devrac's parsing
 
 # License
 # This script is released under version three of the GNU General Public License (GPL) of the 
@@ -82,17 +82,9 @@ ls -1 $parseddiskstatsdir | $sedbin 's/\.edu.*/.edu/' | $sortbin | $uniqbin | wh
     mv ${parseddiskstatsdir}/${eachserver}.df.new ${parseddiskstatsdir}/${eachserver}.df
   elif [ "$eachserver" = "devrac-a-01.cssd.pitt.edu" -o "$eachserver" = "devrac-a-02.cssd.pitt.edu" -o "$eachserver" = "devrac-a-03.cssd.pitt.edu" -o "$eachserver" = "devrac-a-04.cssd.pitt.edu" ];then
     $sedbin -e '/asm/d' ${parseddiskstatsdir}/${eachserver}.df > ${parseddiskstatsdir}/${eachserver}.df.new
+    mv ${parseddiskstatsdir}/${eachserver}.df.new ${parseddiskstatsdir}/${eachserver}.df
   elif [ "$eachserver" = "prdrac-a-01.cssd.pitt.edu" -o "$eachserver" = "prdrac-a-02.cssd.pitt.edu" -o "$eachserver" = "prdrac-a-03.cssd.pitt.edu" -o "$eachserver" = "prdrac-a-04.cssd.pitt.edu" -o "$eachserver" = "prdrac-a-05.cssd.pitt.edu" ];then
     $sedbin -e '/asm/d' ${parseddiskstatsdir}/${eachserver}.df > ${parseddiskstatsdir}/${eachserver}.df.new
-    mv ${parseddiskstatsdir}/${eachserver}.df.new ${parseddiskstatsdir}/${eachserver}.df
-  elif [ "$eachserver" = "dwdd01.cssd.pitt.edu" -o "$eachserver" = "dwdd02.cssd.pitt.edu" ];then
-    $sedbin -e '/d60:/d;/d160:/d' ${parseddiskstatsdir}/${eachserver}.df > ${parseddiskstatsdir}/${eachserver}.df.new
-    mv ${parseddiskstatsdir}/${eachserver}.df.new ${parseddiskstatsdir}/${eachserver}.df
-  elif [ "$eachserver" = "dwpd01.cssd.pitt.edu" -o "$eachserver" = "dwpd02.cssd.pitt.edu" ];then
-    $sedbin -e '/d3:/d;/d10:/d' ${parseddiskstatsdir}/${eachserver}.df > ${parseddiskstatsdir}/${eachserver}.df.new
-    mv ${parseddiskstatsdir}/${eachserver}.df.new ${parseddiskstatsdir}/${eachserver}.df
-  elif [ "$eachserver" = "mailman-dev.cssd.pitt.edu" ];then
-    $sedbin -e '/d4:/d;/\/mnt:/d' ${parseddiskstatsdir}/${eachserver}.df > ${parseddiskstatsdir}/${eachserver}.df.new
     mv ${parseddiskstatsdir}/${eachserver}.df.new ${parseddiskstatsdir}/${eachserver}.df
   elif [ "$eachserver" = "net-log-01.ns.pitt.edu" -o "$eachserver" = "net-log-02.ns.pitt.edu" ];then
     $sedbin -e '/\/sun1/d;/odm/d' ${parseddiskstatsdir}/${eachserver}.df > ${parseddiskstatsdir}/${eachserver}.df.new

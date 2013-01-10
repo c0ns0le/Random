@@ -1,9 +1,8 @@
 #!/usr/bin/perl
 # Description: Display the status of compute nodes via either plain text or HTML
 # Written By: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 1.6.1
-# Last change: Added tempurature display to almost all of the other nodes, added tempurature
-# display to the text mode output
+# Version: 1.6.2
+# Last change: Fixed the order of items in the table header
 
 ##### License
 # This script is released under version three (3) of the GNU General Public License (GPL) of the 
@@ -85,11 +84,11 @@ Content-type: text/html\n\n
       <th scope="col">Tempurature</th>
       <th scope="col">/scratch</th>
       <th scope="col">/pan</th>
-      <th scope="col">/opt/sam</th>
-      <th scope="col">/opt/pkg</th>
-      <th scope="col">/home</th>
       <th scope="col">/home1</th>
+      <th scope="col">/home</th>
       <th scope="col">/gscratch</th>
+      <th scope="col">/data/sam</th>
+      <th scope="col">/data/pkg</th>
     </tr>
   </thead>
   <tbody>
@@ -254,7 +253,7 @@ else {
     
     # If node_status is not up then just print blank table cells for everything else
     unless (${${$node_states{$node_number}}{'node_status'}}{'up'}) {
-      print "<td></td>\n" x 9;
+      print "<td></td>\n" x 10;
       next;
     }
     

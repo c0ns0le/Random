@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 # Description: Check the health of compute nodes in a Beowulf HPC cluster
 # Written By: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 8.4.1
-# Last change: Added tempurature display to almost all of the other nodes
+# Version: 8.4.2
+# Last change: Added check for /home2
 
 ##### License
 # This script is released under version three (3) of the GNU General Public License (GPL) of the 
@@ -79,6 +79,7 @@ my %node_states;
 #   "/opt/pkg" => {"ok" => 1} # /opt/pkg mount check: ok, sysfail, not_mounted
 #   "/home" => {"ok" => 1} # /home mount check: ok, sysfail, not_mounted
 #   "/home1" => {"ok" => 1} # /home1 mount check: ok, sysfail, not_mounted
+#   "/home2" => {"ok" => 1} # /home2 mount check: ok, sysfail, not_mounted
 #   "/gscratch1" => {"ok" => 1} # /gscratch1 mount check: ok, sysfail, not_mounted
 #   "Temp" => {"temp" => 85} # CPU0 tempurature in C: temp, sysfail, n/a
 # };
@@ -118,7 +119,7 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
     print STDERR BOLD RED "Node $node_number is not up, state: down (${${$node_states{$node_number}}{'node_status'}}{'down'})\n\n";
     
     if (${${$node_states{$node_number}}{'node_status'}}{'down'} >= 2) {
-#       syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Node $node_number is not up, state: down-- $0");
+      syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Node $node_number is not up, state: down-- $0");
     }
     
     next;
@@ -131,7 +132,7 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
     print STDERR BOLD RED "Not up, state: boot (${${$node_states{$node_number}}{'node_status'}}{'boot'})\n\n";
     
     if (${${$node_states{$node_number}}{'node_status'}}{'boot'} >= 18) {
-#       syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Node $node_number is not up, state: boot -- $0");
+      syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Node $node_number is not up, state: boot -- $0");
     }
     
     next;
@@ -143,7 +144,7 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
     
     print STDERR BOLD RED "Not up, state: $node_status (${${$node_states{$node_number}}{'node_status'}}{'error'})\n\n";
     
-#     syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Node $node_number is not up, state: error -- $0");
+    syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Node $node_number is not up, state: error -- $0");
     
     next;
   }
@@ -166,7 +167,7 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
     print STDERR BOLD RED "Call to Moab's checknode failed (${${$node_states{$node_number}}{'moab'}}{'sysfail'})\n";
 
     if (${${$node_states{$node_number}}{'moab'}}{'sysfail'} >= 3) {
-#       syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Call to Moab's checknode failed on node $node_number -- $0");
+      syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Call to Moab's checknode failed on node $node_number -- $0");
     }
     
   }
@@ -187,7 +188,7 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
     print STDERR BOLD RED "Moab is down (${${$node_states{$node_number}}{'moab'}}{'down'})\n";
 
     if (${${$node_states{$node_number}}{'moab'}}{'down'} >= 6) {
-#       syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Moab (resource scheduler) is down on node $node_number -- $0");
+      syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Moab (resource scheduler) is down on node $node_number -- $0");
     }
     
   }
@@ -230,7 +231,7 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
       print STDERR BOLD RED "Call to check IB failed (${${$node_states{$node_number}}{'ib'}}{'sysfail'})\n";
     
       if (${${$node_states{$node_number}}{'ib'}}{'sysfail'} >= 3) {
-#         syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Call to check IB failed on node $node_number -- $0");
+        syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Call to check IB failed on node $node_number -- $0");
       }
     
     }
@@ -253,7 +254,7 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
       print STDERR BOLD RED "IB is down (${${$node_states{$node_number}}{'ib'}}{'down'})\n";
       
       if (${${$node_states{$node_number}}{'ib'}}{'down'} >= 6) {
-#         syslog("LOG_ERR", "NOC-NETCOOL-TICKET: IB is down on node $node_number -- $0");
+        syslog("LOG_ERR", "NOC-NETCOOL-TICKET: IB is down on node $node_number -- $0");
       }
       
     }
@@ -266,7 +267,7 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
   my @proc_mounts = `$bpsh $node_number cat /proc/mounts`;
   my $bpsh_status = $? / 256;
   
-  for my $mount_point (qw(/scratch /home /home1 /data/sam /data/pkg /gscratch1 /pan)) {
+  for my $mount_point (qw(/scratch /home /home1 /home2 /data/sam /data/pkg /gscratch1 /pan)) {
   
     if ($bpsh_status == -1) {
       delete ${${$node_states{$node_number}}{$mount_point}}{'above_95%'};
@@ -278,7 +279,7 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
       print STDERR BOLD RED "Call to check $mount_point failed (${${$node_states{$node_number}}{$mount_point}}{'sysfail'})\n";
 
       if (${${$node_states{$node_number}}{$mount_point}}{'sysfail'} >= 3) {
-#         syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Call to check $mount_point failed on node $node_number -- $0");
+        syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Call to check $mount_point failed on node $node_number -- $0");
       }
     
     }
@@ -302,7 +303,7 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
       print STDERR BOLD RED "$mount_point not mounted (${${$node_states{$node_number}}{$mount_point}}{'not_mounted'})\n";
 
       if (${${$node_states{$node_number}}{$mount_point}}{'not_mounted'} >= 2) {
-#         syslog("LOG_ERR", "NOC-NETCOOL-TICKET: $mount_point not mounted on node $node_number -- $0");
+        syslog("LOG_ERR", "NOC-NETCOOL-TICKET: $mount_point not mounted on node $node_number -- $0");
       }
       
     }
@@ -332,7 +333,7 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
     print STDERR BOLD RED "Call to check /scratch space failed (${${$node_states{$node_number}}{'/scratch'}}{'sysfail'})\n";
 
     if (${${$node_states{$node_number}}{'/scratch'}}{'sysfail'} >= 3) {
-#       syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Call to check /scratch space failed on node $node_number -- $0");
+      syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Call to check /scratch space failed on node $node_number -- $0");
     }
     
   }
@@ -356,7 +357,7 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
     print STDERR BOLD RED "/scratch space above 95% (${${$node_states{$node_number}}{'/scratch'}}{'above_95%'})\n";
 
     if (${${$node_states{$node_number}}{'/scratch'}}{'above_95%'} >= 12) {
-#       syslog("LOG_ERR", "NOC-NETCOOL-TICKET: /scratch space above 95% on node $node_number -- $0");
+      syslog("LOG_ERR", "NOC-NETCOOL-TICKET: /scratch space above 95% on node $node_number -- $0");
     }  
     
   }

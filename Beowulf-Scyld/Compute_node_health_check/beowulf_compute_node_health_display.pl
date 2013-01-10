@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 # Description: Display the status of compute nodes via either plain text or HTML
 # Written By: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 1.6.2
-# Last change: Fixed the order of items in the table header
+# Version: 1.6.3
+# Last change: Added check for /home2
 
 ##### License
 # This script is released under version three (3) of the GNU General Public License (GPL) of the 
@@ -50,6 +50,7 @@ my %node_states = %{retrieve("/tmp/node_status.dump")};
 #   "/opt/pkg" => {"ok" => 1} # /opt/pkg mount check: ok, sysfail, not_mounted
 #   "/home" => {"ok" => 1} # /home mount check: ok, sysfail, not_mounted
 #   "/home1" => {"ok" => 1} # /home1 mount check: ok, sysfail, not_mounted
+#   "/home2" => {"ok" => 1} # /home2 mount check: ok, sysfail, not_mounted
 #   "/gscratch1" => {"ok" => 1} # /gscratch1 mount check: ok, sysfail, not_mounted
 #   "Temp" => {"temp" => 85} # CPU0 tempurature in C: temp, sysfail, n/a
 # };
@@ -84,6 +85,7 @@ Content-type: text/html\n\n
       <th scope="col">Tempurature</th>
       <th scope="col">/scratch</th>
       <th scope="col">/pan</th>
+      <th scope="col">/home2</th>
       <th scope="col">/home1</th>
       <th scope="col">/home</th>
       <th scope="col">/gscratch</th>

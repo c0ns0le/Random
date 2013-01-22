@@ -4,8 +4,8 @@ use strict;
 
 # Description: Check for Mailmn mailing lists with more than X number of members.
 # Written By: Jeff White of The Univeristy of Pittsburgh (jaw171@pitt.edu)
-# Version: 1.1
-# Last change: Switch regex of a list to a key check of a hash, other minor changes
+# Version: 1.2
+# Last change: Log the list name found, not the number of large lists found
 
 # License
 # This script is released under version three of the GNU General Public License (GPL) of the 
@@ -23,16 +23,17 @@ my $member_num_threshold = "1000";
 # Where are our binaries?
 my $list_lists_binary = "/usr/local/mailman/bin/list_lists";
 my $list_members_binary = "/usr/local/mailman/bin/list_members";
+my $ignored_lists_file = "/usr/local/etc/known_big_lists.txt";
 
 GetOptions('h|help' => \my $helpopt,
-	   'i|ignored-lists=s' => \my $ignored_lists_file,
+	   'i|ignored-lists=s' => \$ignored_lists_file,
           ) || die "Incorrect usage, use -h for help.\n";
 
 if (($helpopt) or (!$ignored_lists_file)) {
   print "Description: Check for mailing lists with more than X number of members.\n";
   print "Usage: $0 [OPTION]\n";
   print "-h | --help : Show this help.\n";
-  print "-i | --ignored-lists /path/to/file.txt : (Required) File arg with a list of lists that are ignored regardless of the number of members it has.\n";
+  print "-i | --ignored-lists /path/to/file.txt : File arg with a list of lists that are ignored. (Default: /usr/local/etc/known_big_lists.txt)\n";
   exit;
 }
 
@@ -51,7 +52,6 @@ for my $list (<$IGNORED_LISTS_FILE>) {
 close $IGNORED_LISTS_FILE;
 
 # Loop through each list and check how many members it has
-my $num_large_lists = 0;
 my %lists_num_members;
 for my $each_list_name (`$list_lists_binary --bare`){
   chomp $each_list_name;
@@ -65,17 +65,8 @@ for my $each_list_name (`$list_lists_binary --bare`){
   # If the number of list members is equal to or higher than the threshold AND is not in the ignore list...
   if (($lists_num_members{$each_list_name} >= $member_num_threshold) and (!$ignored_lists{$each_list_name})){
     print "List $each_list_name has $lists_num_members{$each_list_name} members.\n";
-    $num_large_lists++;
+    syslog("LOG_ERR", "NOC-NETCOOL-TICKET: List '$each_list_name' has more than $member_num_threshold members.  Please investigate.");
   }
-}
-
-# Create a Netcool alert if any new large lists are found
-if ($num_large_lists) {
-  print "Found $num_large_lists large lists.\n";
-  syslog("LOG_ERR", "NOC-NETCOOL-TICKET: Found $num_large_lists list(s) with more than $member_num_threshold members.  Please investigate the list(s). -- $0.");
-}
-else {
-  print "No large lists found.\n";
 }
 
 closelog;

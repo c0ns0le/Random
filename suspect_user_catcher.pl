@@ -25,28 +25,13 @@ use Geo::IP;
 # Define our whitelists
 # The source whitelist is used to check how many non-whitelisted IPs a 
 my %whitelisted_source_ips = (
-  "72.95.128.0/17" => "pitbpa.east.verizon.net",
-  "71.182.0.0/15" => "pitbpa.east.verizon.net",
-  "71.184.0.0/13" => "pitbpa.east.verizon.net",
-  "71.181.128.0/17" => "pitbpa.east.verizon.net",
-  "71.248.0.0/14" => "pitbpa.east.verizon.net",
-  "71.241.224.0/19" => "pitbpa.east.verizon.net",
-  "71.252.0.0/15" => "pitbpa.east.verizon.net",
-  "71.244.0.0/14" => "pitbpa.east.verizon.net",
-  "71.242.0.0/15" => "pitbpa.east.verizon.net",
   "136.142.0.0/16" => "Pittnet",
   "130.49.0.0/16" => "Pittnet",
   "10.0.0.0/8" => "Pittnet",
   "150.212.0.0/16" => "Pittnet",
-  "128.2.0.0/16" => "CMU",
-  "157.229.0.0/16" => "UPMC - Shadyside?",
-  "24.154.0.0/16" => "Armstrong Cable in Butler, PA",
 );
 
 my %whitelisted_dest_ips = (
-  "136.142.34.12" => "Pitt SMTP VIP",
-  "136.142.11.121" => "Pitt IMAP VIP",
-  "136.142.8.83" => "Pitt FTP",
   "136.142.0.0/16" => "Pittnet",
   "130.49.0.0/16" => "Pittnet",
   "10.0.0.0/8" => "Pittnet",
@@ -55,16 +40,6 @@ my %whitelisted_dest_ips = (
 
 my %whitelisted_users = (
   "root" => "root",
-  "dsorescu" => "Dan C Sorescu, user with multiple login IPs",
-  "zboray" => "Mary S Zboray, user with multiple login IPs",
-  "rwheath" => "Robert W Heath, user with multiple login IPs",
-  "arbst27" => "Arie Baratt, user with multiple login IPs",
-  "katz" => "user with multiple login IPs",
-  "forbesk" => "user with multiple login IPs",
-  "reichle" => "Erik D Reichle, Euro user",
-  "yih29" => "Yifeng Huang, Chinese user",
-  "gsiegle" => "Greg J Siegle, Malaysian user",
-  "jasun" => "Jasun Gong, Finnish user.",
 );
 
 # Define what we deem suspicious

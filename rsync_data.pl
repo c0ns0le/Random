@@ -37,26 +37,6 @@ if ($helpopt) {
 }
 
 
-# Log an error to syslog and STDERR.  Tag for Netcool alerts if asked to.
-sub log_error {
-  # Returns undef
-  # Usage: log_error("Some error text", "syslog tag") # Scalar
-  # Syslog tag can be anything but NOC-NETCOOL-ALERT and NOC-NETCOOL-TICKET are for Netcool alerts.
-
-  my $message = shift;
-  my $tag = shift;
-
-  print STDERR "! : $message\n";
-  if ($tag) {
-    system("/usr/bin/logger", "-p", "user.err", "-t", $tag, $message);
-  }
-  else {
-    system("/usr/bin/logger", "-p", "user.err", $message);
-  }
-  return;
-}
-
-
 my $rsync_obj = File::Rsync->new({
   archive => 1,
   inplace => 1,
@@ -79,9 +59,13 @@ if (($status != 0) and ($status != 24)) { # 24 == vanished source files
   
   my $ref_to_errors = $rsync_obj->err;
   
-  log_error("Error '$status' during transfer: '$source' => '$dest'", "NOC-NETCOOL-TICKET");
+  system("/usr/bin/logger", "-p", "user.err", "-t", "NOC-NETCOOL-TICKET", "Error '$status' during transfer: '$source' => '$dest'");
   foreach my $error_line (@$ref_to_errors) {
-    log_error($error_line);
+    system("/usr/bin/logger", "-p", "user.err", $error_line);
   }
-  
+
+}
+else {
+  print "Sync of /tftpboot/ to tornado.ns completed successfully\n";
+  system("/usr/bin/logger", "-p", "user.info", "Sync of /tftpboot/ to tornado.ns completed successfully");
 }

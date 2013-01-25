@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 # Description: Check the health of compute nodes in a Beowulf HPC cluster
 # Written By: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 8.4.2
-# Last change: Added check for /home2
+# Version: 8.4.3
+# Last change: Adjusted for new nodes
 
 ##### License
 # This script is released under version three (3) of the GNU General Public License (GPL) of the 
@@ -27,7 +27,7 @@ my $bpsh = "/usr/bin/bpsh";
 my $checknode = "/opt/sam/moab/6.1.7/bin/checknode";
 
 # Defaults for some options
-my $nodes = "0-176,243-324";
+my $nodes = "0-176,243-378";
 
 GetOptions('h|help' => \my $helpopt,
 	   'n|nodes:s' => \$nodes,
@@ -37,7 +37,7 @@ GetOptions('h|help' => \my $helpopt,
 if ($helpopt) {
   print "Check the health of compute nodes in a Beowulf HPC cluster\n";
   print "-h | --help : Show this help\n";
-  print "-n | --nodes : Which nodes to check.  Default: 0-176,243-324\n";
+  print "-n | --nodes : Which nodes to check.  Default: 0-176,243-378\n";
   print "-e | --export : Export the node health status data to /tmp/node_status.dump\n";
   print "\nExamples:\n";
   print "Check nodes 0 through 9, skip 5: $0 -n 0-4,6-9\n";
@@ -365,10 +365,14 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
   
   # Check the node's CPU tempurature
   if (
-    ($node_number !~ m/^242$/)
+    ($node_number !~ m/^242$/) and
+    ($node_number !~ m/^32[5-9]$/) and
+    ($node_number !~ m/^3[3-6]\d$/) and
+    ($node_number !~ m/^37[0-8]$/)
     ) {
     delete ${${$node_states{$node_number}}{'Temp'}}{'sysfail'};
     delete ${${$node_states{$node_number}}{'Temp'}}{'temp'};
+    delete ${${$node_states{$node_number}}{'Temp'}}{'n/a'};
     
     # Time out after 5 seconds
     my @ipmi_cpu0_sensor;
@@ -439,6 +443,8 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
 #   }
   else {
     ${${$node_states{$node_number}}{'Temp'}}{'n/a'}++;
+    
+     print "Tempurature: N/A ${${$node_states{$node_number}}{'Temp'}}{'n/a'}\n";
   }
   
   # FIXME: For failures we didn't catch
@@ -448,8 +454,9 @@ for my $bpstat_line (`$bpstat --long $nodes`) {
     (!${${$node_states{$node_number}}{'Temp'}}{'n/a'})
     ) {
     ${${$node_states{$node_number}}{'Temp'}}{'sysfail'}++;
+    
+    print "Tempurature: sysfail ${${$node_states{$node_number}}{'Temp'}}{'sysfail'}\n";
   }
-  
   
   print "\n";
 

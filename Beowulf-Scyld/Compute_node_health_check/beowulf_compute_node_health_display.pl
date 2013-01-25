@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 # Description: Display the status of compute nodes via either plain text or HTML
 # Written By: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 1.6.4
-# Last change: Added another blank cell on down nodes due to adding /home2 check
+# Version: 1.6.5
+# Last change: Adjusted for new nodes
 
 ##### License
 # This script is released under version three (3) of the GNU General Public License (GPL) of the 
@@ -71,7 +71,7 @@ Content-type: text/html\n\n
 </head>
 <body>
   <center>
-    <h2>Frank Compute Node Status: 0-176,242-324</h2>
+    <h2>Frank Compute Node Status: 0-176,242-378</h2>
     <h3>Nodes 177-241 are available <a href="http://headnode0.frank.sam.pitt.edu/nodes">here</a></h3>
     <p>Status last generated $mod_timestamp</p>
   </center>

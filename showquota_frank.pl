@@ -3,8 +3,8 @@ use strict;
 use warnings;
 # Description: Display the disk quotas for the current user and group
 # Written by: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 1.2
-# Last change: Changed to handle soft and hard quotas correctly and show grace time on exceeded quotas
+# Version: 2
+# Last change: Rewrite to handle multiple filesystems and use the Quota module
 
 # License
 # This script is released under version three of the GNU General Public License (GPL) of the 
@@ -19,16 +19,18 @@ use Sys::Syslog qw(:DEFAULT setlogsock);
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
 use POSIX qw(isdigit);
+use Quota;
+
 
 my %whitelisted_users = (
 #   "kimwong" => "Kim Wong, SaM admin",
 );
 
 $| = 1;
-my $verbose = 0;
+
 
 GetOptions('h|help' => \my $helpopt,
-           'v|verbose+' => \$verbose,
+           'v|verbose+' => \my $verbose,
           ) || die "Invalid usage, use -h for help.\n";
 
 if ($helpopt) {
@@ -40,152 +42,70 @@ if ($helpopt) {
   exit;
 }
 
+
 # Prepare for syslog()
 setlogsock("unix");
 openlog($0, "nonul,pid", "user") or warn "Unable to open syslog connection\n";
 
+
 my $user = getpwuid($<);
 my $group = getgrgid($();
+my ($uid_number, $gid_number) = (getpwnam($user))[2,3];
 
-print "Getting quota for user '$user' and group '$group'...\n" if ($verbose);
 
-# Get the /home user quota
-{
-  print "Getting user quota for /home...\n" if ($verbose);
-  my @quota_out = `quota -u $user 2>/dev/null`;
-  my $quota_line = $quota_out[-1];
+# Loop through each filesystem and try to find a quota
+my $no_quota = 0;
+for my $filesystem (qw(/home /home1 /home2 /gscratch1)) {
   
-  # Is any quota set?
-  if ($quota_line =~ m/none$/) {
-    print "/home: No quota is set for user $user.\n\n";
-    
-    # If the user isn't whitelisted, create an alert for the issue
-    unless ($whitelisted_users{$user}) {
-      syslog("LOG_ERR", "NOC-NETCOOL-TICKET: /home: No quota is set for user $user");
-    }
-    
-    next;
-  }
+  print "Getting quota for user '$user' and group '$group' on '$filesystem'\n" if ($verbose);
   
-  my ($quota_used, $quota_soft, $quota_hard, $grace_time) = (split(m/\s+/, $quota_line))[1,2,3,4];
-
-  # If we were able to get the quota...
-  if (($quota_used) and ($quota_hard)) {
-    $quota_used =~ s/\*//; # If the user is over quota we need to remove this from the output
-    my $quota_free_soft = sprintf("%.2f", ($quota_soft - $quota_used) / 1024 / 1024);
-    my $quota_free_hard = sprintf("%.2f", ($quota_hard - $quota_used) / 1024 / 1024);
-    $quota_used = sprintf("%.2f", $quota_used / 1024 / 1024);
-    $quota_soft = sprintf("%.2f", $quota_soft / 1024 / 1024 );
-
-    # If the user is over quota also show the hard limit and grace time
-    # This first test is needed as we split the wuota output on whitespace and a non-existant grace period
-    # in the output means we actually captured the number of inodes instead
-    if ((!isdigit $grace_time) and ($quota_used >= $quota_free_soft)) {
-      print "/home: ${quota_used}GB used of ${quota_soft}GB limit (${quota_free_soft}GB free) for user $user\n";
-      print BOLD RED "${quota_free_hard}GB until hard limit, $grace_time remaining of grace time\n\n";
+  my $device = Quota::getqcarg( $filesystem );
+  
+  # User quotas
+  {
+    my ($current_usage, $soft_limit, $hard_limit) = (Quota::query( $device,$uid_number ))[0,1,2];
+    
+    if (($current_usage) or ($soft_limit) or ($hard_limit)) {
+      
+      $current_usage =~ s/\*//; # If the user is over quota we need to remove this from the output
+      print BOLD RED "Warning: " if ($current_usage >= $soft_limit);      
+      print "User $user is using " . sprintf("%.2f", $current_usage/1024/1024) . " GB of " . sprintf("%.2f", $soft_limit/1024/1024) . " GB on $filesystem (" . sprintf("%.2f", $hard_limit/1024/1024) . " GB hard limit)\n";
+      
     }
     else {
-      print "/home: ${quota_used}GB used of ${quota_soft}GB limit (${quota_free_soft}GB free) for user $user\n\n"
+      
+      $no_quota++;
+      
     }
   }
-  else {
-    print "Unable to find quota of /home for $user\n\n";
-  }
-}
-
-
-
-# Get the /home group quota
-{
-  print "Getting group quota for /home...\n" if ($verbose);
-  my @qouta_out = `quota -g $group 2>/dev/null`;
-  my $quota_line = $qouta_out[-1];
   
-  # Is any quota set?
-  if ($quota_line =~ m/none$/) {
-#     print "/home: No quota is set for group $group.  Please report this on http://core.sam.pitt.edu.\n\n";
-    next;
-  }
   
-  my ($quota_used, $quota_soft, $quota_hard, $grace_time) = (split(m/\s+/, $quota_line))[1,2,3,4];
-
-  # If we were able to get the quota...
-  if (($quota_used) and ($quota_hard)) {
-    $quota_used =~ s/\*//; # If the user is over quota we need to remove this from the output
-    my $quota_free_soft = sprintf("%.2f", ($quota_soft - $quota_used) / 1024 / 1024);
-    my $quota_free_hard = sprintf("%.2f", ($quota_hard - $quota_used) / 1024 / 1024);
-    $quota_used = sprintf("%.2f", $quota_used / 1024 / 1024);
-    $quota_soft = sprintf("%.2f", $quota_soft / 1024 / 1024 );
-
-    # If the group is over quota, also show the grace time
-    if ((!isdigit $grace_time) and ($quota_used >= $quota_free_soft)) {
-      print "/home: ${quota_used}GB used of ${quota_soft}GB limit (${quota_free_soft}GB free) for group $group\n";
-      print BOLD RED "${quota_free_hard}GB until hard limit, $grace_time remaining of grace time\n\n";
+  # Group quotas
+  {
+    my ($current_usage, $soft_limit, $hard_limit) = (Quota::query( $device,$gid_number,1 ))[0,1,2];
+  
+    if (($current_usage) or ($soft_limit) or ($hard_limit)) {
+    
+      $current_usage =~ s/\*//; # If the user is over quota we need to remove this from the output
+      print BOLD RED "Warning: " if ($current_usage >= $soft_limit); 
+      print "Group $group is using " . sprintf("%.2f", $current_usage/1024/1024) . " GB of " . sprintf("%.2f", $soft_limit/1024/1024) . " GB on $filesystem (" . sprintf("%.2f", $hard_limit/1024/1024) . " GB hard limit)\n\n";
+      
     }
     else {
-      print "/home: ${quota_used}GB used of ${quota_soft}GB limit (${quota_free_soft}GB free) for group $group\n\n";
+    
+      $no_quota++;
+      
     }
   }
-  else {
-    print "Unable to find quota of /home for $group\n\n";
-  }
-}
-
-# Get the /gscratch user quota
-{
-  print "Getting user quota for /gscratch...\n" if ($verbose);
-  my @quota_out = `gquota_client.py --volume=vol_global_scratch --path=/$group/$user`;
-  my $quota_line = $quota_out[-1];
   
-  # Is any quota set?
-  if ($quota_line =~ m/^No quota found/) {
-#     print "/gscratch: No quota is set for user $user.  Please report this on http://core.sam.pitt.edu.\n\n";
-    next;
-  }
-  
-  my ($quota_used, $quota_hard) = (split(m/\s+/, $quota_line))[1,3];
-
-  # If we were able to get the quota...
-  if (($quota_used) and ($quota_hard)) {
-    print "/gscratch: $quota_used used of $quota_hard limit for user $user\n\n"
-  }
-  else {
-    print "Unable to find quota of /gscratch for $user\n\n";
-  }
 }
 
 
-
-# Get the /gscratch group quota
-{
-  print "Getting group quota for /gscratch...\n" if ($verbose);
-  my @quota_out = `gquota_client.py --volume=vol_global_scratch --path=/$group`;
-  my $quota_line = $quota_out[-1];
-  
-  # Is any quota set?
-  if ($quota_line =~ m/^No quota found/) {
-#     print "/gscratch: No quota is set for group $group.  Please report this on http://core.sam.pitt.edu.\n\n";
-    next;
-  }
-  
-  my ($quota_used, $quota_hard) = (split(m/\s+/, $quota_line))[1,3];
-
-  # If we were able to get the quota...
-  if (($quota_used) and ($quota_hard)) {
-    print "/gscratch: $quota_used used of $quota_hard limit for group $group\n\n"
-  }
-  else {
-    print "Unable to find quota of /gscratch for $group\n\n";
-  }
+# Check that the user has at least some kind of quota
+if ($no_quota == 8) {
+  print "Unable to find quota, admins have been notified";
+  syslog("LOG_ERR", "NOC-NETCOOL-TICKET: No quota is set for user $user");
 }
-
-
-
-# Get the Panasas user quota
-
-
-
-# Get the Panasas group quota
 
 
 closelog;

@@ -174,7 +174,7 @@ sub connect_ssh {
                     -o => "PreferredAuthentications=publickey",
                     -o => "StrictHostKeyChecking=no",
                     -l => "backupuser",
-                    "-i" => "/home/backupuser/.ssh/id_rsa",
+                    -i => "/home/backupuser/.ssh/id_rsa",
                    ],
   );
 
@@ -487,8 +487,8 @@ if (($datastore_no_delete) or ($datastore_with_delete)) {
     # Do the rsync
     if ($rsync_object) {
       $rsync_object->exec({
-        "src" => "/media/Data/Test/",
-        "dest" => "teal.jealwh.local:/media/Backup/Test/",
+        "src" => "/media/Data/",
+        "dest" => "teal.jealwh.local:/media/Backup/",
         "exclude" => \@exclude_list,
       });
     }
@@ -582,6 +582,8 @@ sub backup_linux_os {
       tc2
       /bricks
       /run
+      .Private
+      .ecrypt
     );
 
     # Should we enable rsync's --delete?

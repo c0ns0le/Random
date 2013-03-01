@@ -1,8 +1,8 @@
 #!/bin/bash
 # Description: Install NOC tools and perform post-install tasks for RHEL 6
 # Written by: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 1.4
-# Last change: Updated Netcool agent, do not install Netbackup on VMs, remove noctools after install
+# Version: 1.5
+# Last change: Updated to latest build standard
 
 # License
 # This script is released under version three of the GNU General Public License (GPL) of the 
@@ -16,7 +16,6 @@
 script="${0##*/}"
 working_dir="/var/tmp"
 netbackup_tar="/root/netbackup_7.5_rhel.tgz"
-netcool_tar="/root/netcool-ssm-4.0.0-906-fp10-linux-x86.tar.gz"
 
 
 function print_error {
@@ -29,6 +28,9 @@ function print_error {
 
 # Send STDERR to a file in addition to the console
 exec 2> >(tee /root/build.err >&2)
+
+
+sed -i 's|SINGLE=/sbin/sushell|SINGLE=/sbin/sulogin|' /etc/sysconfig/init
 
 
 echo "#####"
@@ -61,10 +63,13 @@ echo "#####"
 
 
 echo "#####"
-read -p "Would you like to register to Red Hat Network (RHN). y or n " rhn_y_or_n
+read -p "Would you like to register to Red Hat Network (RHN) Satellite? y or n " rhn_y_or_n
 echo "#####"
 if [[ "$rhn_y_or_n" == "y" ]];then
-  rhn_register || print_error "ERROR - $LINENO - Failed to register to RHN." 1
+#   rhn_register || print_error "ERROR - $LINENO - Failed to register to RHN." 1
+  wget https://rhn.cssd.pitt.edu/pub/rhnbootstrap.sh || print_error "ERROR - $LINENO - Failed to register to RHN Satellite." 1
+  sh rhnbootstrap.sh || print_error "ERROR - $LINENO - Failed to register to RHN Satellite." 1
+
 else
   echo "Skipping RHN."
 fi
@@ -98,6 +103,7 @@ if ! dmesg | grep -i "vmware" >/dev/null;then
   SERVER = nb-ms-03.cssd.pitt.edu
   SERVER = nb-ms-04.cssd.pitt.edu
   SERVER = nb-unixsnap-01.cssd.pitt.edu
+  SERVER = nb-linuxsnap-01.cssd.pitt.edu
   SERVER = nb-winsnap-01.cssd.pitt.edu
   SERVER = nb-winsnap-02.cssd.pitt.edu
 EOF_bp.conf

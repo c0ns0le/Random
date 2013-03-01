@@ -1,8 +1,8 @@
 #!/bin/bash
 #Description: Bash script to control startup daemons with chkconfig.
 #Written By: Jeff White of The Univeristy of Pittsburgh (jaw171@pitt.edu)
-# Version: 1.0
-# Last change: Removed kdump from the list of daemons to enable
+# Version: 1.1
+# Last change: Added mcelogd as a daemon to enable
 
 # License
 # This script is released under version three of the GNU General Public License (GPL) of the 
@@ -69,6 +69,7 @@ vmware-tools
 xinetd
 netbackup
 vxpbx_exchanged
+mcelogd
 EOF
 elif [ "$isrhel6" = "1" ];then
 echo "System appears to be RHEL 6."
@@ -88,6 +89,7 @@ postfix
 ntpd
 rsyslog
 sshd
+cpuspeed
 sysstat
 udev-post
 vmware-tools
@@ -95,6 +97,7 @@ sendmail
 xinetd
 netbackup
 vxpbx_exchanged
+mcelogd
 EOF
 else
   _print_stderr_then_exit "ERROR - $LINENO - This box does not appear to be RHEL 5 or 6."

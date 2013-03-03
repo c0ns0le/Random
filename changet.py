@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 # Description: Download images from a 4chan thread with original file names
 # Written by: Jeff White (jwhite530@gmail.com)
-# Version: 1
-# Last change: Initial version
+# Version: 1.1
+# Last change: Fixed image number counts
 
 # License:
 # This software is released under version three of the GNU General Public License (GPL) of the
@@ -91,9 +91,9 @@ while True:
       
       # The OP will tell us how many images are in the thread
       if "images" in post_data:
-        num_remote_images = post_data["images"]
+        num_remote_images = post_data["images"] + 1  
         num_local_images = len([name for name in os.listdir(".") if os.path.isfile(name)])
-        sys.stdout.write("Found " + str(num_remote_images) + " images in thread and " + str(num_local_images - 1) + " already local\n")
+        sys.stdout.write("Found " + str(num_remote_images) + " images in thread and " + str(num_local_images) + " already local\n")
       
       # Skip posts without images
       if not post_data.get("filename"):

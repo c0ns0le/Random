@@ -18,14 +18,14 @@ from urllib import urlopen
 from optparse import OptionParser
 
 
-   
+     
 # How were we called?
 parser = OptionParser(
-  "%prog [options] url\n" + 
-  "Download images from a 4chan thread with original file names.\n" + 
-  "This program will create a directory named for the board given with\n" + 
-  "a directory under that named for the thread number.\n" + 
-  "\nExample: %prog http://boards.4chan.org/g/res/31432249"
+    "%prog [options] url\n" + 
+    "Download images from a 4chan thread with original file names.\n" + 
+    "This program will create a directory named for the board given with\n" + 
+    "a directory under that named for the thread number.\n" + 
+    "\nExample: %prog http://boards.4chan.org/g/res/31432249"
 )
 
 (options, args) = parser.parse_args()
@@ -34,13 +34,13 @@ parser = OptionParser(
 
 # Were we called correctly?
 try:
-  url = sys.argv[1]
-  
+    url = sys.argv[1]
+    
 except:
-  sys.stderr.write("No URL specified, see `changet.py --help`.\n")
-  sys.exit(2)
-  
-  
+    sys.stderr.write("No URL specified, see `changet.py --help`.\n")
+    sys.exit(2)
+    
+    
 
 spliturl = url.split('/')
 board = spliturl[3]
@@ -49,27 +49,27 @@ thread = re.sub("#.*$", "", spliturl[5])
 
 
 try:
-  int(thread)
+    int(thread)
 except:
-  
-  sys.stderr.write("Failed to get thread number from URL, see `changet.py --help`.\n")
-  sys.exit(2)
+    
+    sys.stderr.write("Failed to get thread number from URL, see `changet.py --help`.\n")
+    sys.exit(2)
 
 
-  
+    
 # Create the download directory
 try:
-  if not os.path.isdir(board):
-    os.mkdir(board, 0750)
-    
-  if not os.path.isdir(board + "/" + thread):
-    os.mkdir(board + "/" + thread, 0750)
-    
+    if not os.path.isdir(board):
+        os.mkdir(board, 0750)
+        
+    if not os.path.isdir(board + "/" + thread):
+        os.mkdir(board + "/" + thread, 0750)
+        
 except:
-  e = sys.exc_info()[0]
-  sys.stderr.write("Failed to create download directory " + board + "/" + thread + "\n")
-  sys.exit(1)
-  
+    e = sys.exc_info()[0]
+    sys.stderr.write("Failed to create download directory " + board + "/" + thread + "\n")
+    sys.exit(1)
+    
 os.chdir(board + "/" + thread)
 
 
@@ -81,70 +81,70 @@ sys.stdout.write("Downloading images from thread " + thread + " of /" + board + 
 
 downloads = {}
 while True:
-  try:
-    
-    # Get the JSON data
-    json_handle = urlopen("https://api.4chan.org/" + board + "/res/" + thread + ".json")
-    json_text = json_handle.read()
-    json_handle.close()
+    try:
+        
+        # Get the JSON data
+        json_handle = urlopen("https://api.4chan.org/" + board + "/res/" + thread + ".json")
+        json_text = json_handle.read()
+        json_handle.close()
 
-    if not json_text:
-      sys.stderr.write("No such thread or failed to download JSON data\n")
-      sys.exit(1)
-      
-    
-    # Loop through each post
-    for post_data in json.loads(json_text)["posts"]:
-      # The OP will tell us how many images are in the thread
-      if "images" in post_data:
-        num_remote_images = post_data["images"] + 1 # 4chan doesn't count OP's post as an image for some reason
+        if not json_text:
+            sys.stderr.write("No such thread or failed to download JSON data\n")
+            sys.exit(1)
+            
         
-        num_local_images = len([name for name in os.listdir(".") if os.path.isfile(name)])
-        
-        sys.stdout.write("Found " + str(num_remote_images) + " images in thread and " + str(num_local_images) + " already local\n")
-      
-      
-      post_number = post_data["no"]
-      
-      
-      # Skip posts we already have
-      if post_number in downloads:
-        print "Skipping:", post_number
-        continue
+        # Loop through each post
+        for post_data in json.loads(json_text)["posts"]:
+            # The OP will tell us how many images are in the thread
+            if "images" in post_data:
+                num_remote_images = post_data["images"] + 1 # 4chan doesn't count OP's post as an image for some reason
+                
+                num_local_images = len([name for name in os.listdir(".") if os.path.isfile(name)])
+                
+                sys.stdout.write("Found " + str(num_remote_images) + " images in thread and " + str(num_local_images) + " already local\n")
+            
+            
+            post_number = post_data["no"]
+            
+            
+            # Skip posts we already have
+            if post_number in downloads:
+                print "Skipping:", post_number
+                continue
 
-      
-      # Skip posts without images
-      try:
-        file_name = post_data["filename"] + post_data["ext"]
-        
-        # If the file_name is greater than 255 characters or we have a duplicate 
-        # file name then set it to the post number instead
-        if len(file_name) > 255:
-          file_name = str(post_data["no"]) + post_data["ext"]
-        
-        if file_name in downloads.values():
-          file_name = str(post_data["no"]) + post_data["ext"]
-        
-      except KeyError:
-        continue
+            
+            # Skip posts without images
+            try:
+                file_name = post_data["filename"] + post_data["ext"]
+                
+                # If the file_name is greater than 255 characters or we have a duplicate 
+                # file name then set it to the post number instead
+                if len(file_name) > 255:
+                    file_name = str(post_data["no"]) + post_data["ext"]
+                
+                if file_name in downloads.values():
+                    file_name = str(post_data["no"]) + post_data["ext"]
+                
+            except KeyError:
+                continue
 
+                
+            sys.stdout.write("Downloading file " + file_name + " (" + str(post_data["fsize"]/1024) + " KB) from post " + str(post_number) + "\n")
+            
+            remote_image_handle = urlopen("https://images.4chan.org/" + board + "/src/" + str(post_data["tim"]) + post_data["ext"])
+            local_image_handle = open(file_name, "w")
+            local_image_handle.write(remote_image_handle.read())
+            local_image_handle.close()
+            
+            downloads.update({
+                post_number : file_name
+            })
         
-      sys.stdout.write("Downloading file " + file_name + " (" + str(post_data["fsize"]/1024) + " KB) from post " + str(post_number) + "\n")
-      
-      remote_image_handle = urlopen("https://images.4chan.org/" + board + "/src/" + str(post_data["tim"]) + post_data["ext"])
-      local_image_handle = open(file_name, "w")
-      local_image_handle.write(remote_image_handle.read())
-      local_image_handle.close()
-      
-      downloads.update({
-        post_number : file_name
-      })
-    
-    
-    sys.stdout.write("Waiting 60 seconds until next check\n")
-    time.sleep(60)
-    sys.stdout.write("Checking for new images\n")
-    
-  except KeyboardInterrupt:
-    sys.stderr.write("Caught signal, exiting\n")
-    sys.exit()
+        
+        sys.stdout.write("Waiting 60 seconds until next check\n")
+        time.sleep(60)
+        sys.stdout.write("Checking for new images\n")
+        
+    except KeyboardInterrupt:
+        sys.stderr.write("Caught signal, exiting\n")
+        sys.exit()

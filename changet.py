@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 # Description: Download images from a 4chan thread with original file names
 # Written by: Jeff White (jwhite530@gmail.com)
-# Version: 1.2
-# Last change: Changed the option/arg parser to handle post numbers in the URL and use the optparse module, fixed a bug
-# where some files were not downloaded, fixed a bug where files can be over-written
+# Version: 1.3
+# Last change: Changed whitespace, added check for existing local files, added more error handling,
+# remove URL encoding of file names
 
 # License:
 # This software is released under version three of the GNU General Public License (GPL) of the
@@ -14,7 +14,7 @@
 
 
 import sys, signal, json, hashlib, os, time, re
-from urllib import urlopen
+from urllib import urlopen, unquote
 from optparse import OptionParser
 
 
@@ -101,21 +101,15 @@ while True:
                 
                 num_local_images = len([name for name in os.listdir(".") if os.path.isfile(name)])
                 
-                sys.stdout.write("Found " + str(num_remote_images) + " images in thread and " + str(num_local_images) + " already local\n")
+                sys.stdout.write("Found " + str(num_remote_images) + " images in thread and " + str(num_local_images) + " already local\n\n")
             
-            
-            post_number = post_data["no"]
-            
-            
-            # Skip posts we already have
-            if post_number in downloads:
-                print "Skipping:", post_number
-                continue
-
             
             # Skip posts without images
             try:
                 file_name = post_data["filename"] + post_data["ext"]
+                
+                # Remove URL encoding many image names have
+                file_name = unquote(file_name)
                 
                 # If the file_name is greater than 255 characters or we have a duplicate 
                 # file name then set it to the post number instead
@@ -128,17 +122,28 @@ while True:
             except KeyError:
                 continue
 
+
+            # Skip posts and images we already have
+            if post_data["no"] in downloads or os.path.exists(file_name):
+                continue
+            
+            
+            try:
+                sys.stdout.write("Downloading file " + file_name + " (" + str(post_data["fsize"]/1024) + " KB) from post " + str(post_data["no"]) + "\n")
                 
-            sys.stdout.write("Downloading file " + file_name + " (" + str(post_data["fsize"]/1024) + " KB) from post " + str(post_number) + "\n")
-            
-            remote_image_handle = urlopen("https://images.4chan.org/" + board + "/src/" + str(post_data["tim"]) + post_data["ext"])
-            local_image_handle = open(file_name, "w")
-            local_image_handle.write(remote_image_handle.read())
-            local_image_handle.close()
-            
-            downloads.update({
-                post_number : file_name
-            })
+                remote_image_handle = urlopen("https://images.4chan.org/" + board + "/src/" + str(post_data["tim"]) + post_data["ext"])
+                local_image_handle = open(file_name, "w")
+                local_image_handle.write(remote_image_handle.read())
+                local_image_handle.close()
+                
+                downloads.update({
+                    post_data["no"] : file_name
+                })
+                
+            except Exception as err:
+                sys.stderr.write("Failed to download " + file_name + ":\n" + str(err) + "\n")
+                
+                continue
         
         
         sys.stdout.write("Waiting 60 seconds until next check\n")

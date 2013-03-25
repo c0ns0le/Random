@@ -1,9 +1,8 @@
 #!/usr/bin/env python
 # Description: Download images from a 4chan thread with original file names
 # Written by: Jeff White (jwhite530@gmail.com)
-# Version: 1.3
-# Last change: Changed whitespace, added check for existing local files, added more error handling,
-# remove URL encoding of file names
+# Version: 1.3.1
+# Last change: Change where URL encoding is removed
 
 # License:
 # This software is released under version three of the GNU General Public License (GPL) of the
@@ -108,9 +107,6 @@ while True:
             try:
                 file_name = post_data["filename"] + post_data["ext"]
                 
-                # Remove URL encoding many image names have
-                file_name = unquote(file_name)
-                
                 # If the file_name is greater than 255 characters or we have a duplicate 
                 # file name then set it to the post number instead
                 if len(file_name) > 255:
@@ -132,6 +128,10 @@ while True:
                 sys.stdout.write("Downloading file " + file_name + " (" + str(post_data["fsize"]/1024) + " KB) from post " + str(post_data["no"]) + "\n")
                 
                 remote_image_handle = urlopen("https://images.4chan.org/" + board + "/src/" + str(post_data["tim"]) + post_data["ext"])
+                
+                # Remove URL encoding many image names have
+                file_name = unquote(file_name)
+                
                 local_image_handle = open(file_name, "w")
                 local_image_handle.write(remote_image_handle.read())
                 local_image_handle.close()

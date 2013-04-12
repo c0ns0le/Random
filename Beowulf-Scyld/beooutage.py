@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 # Description: Parse syslog and determine when compute nodes were down
 # Written by: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 1
-# Last change: Initial version
+# Version: 1.1
+# Last change: Fixed a bug where a down alert could be missing, changed the delete logic
+# to better sync up and down alerts
 
 # License:
 # This software is released under version three of the GNU General Public License (GPL) of the
@@ -156,15 +157,28 @@ for node in nodes_list:
             
         else:
             down_time = min(node_obj.down_times)
-            node_obj.down_times.remove(down_time)
             
         if len(node_obj.up_times) is 0:
             up_time = 0
     
         else:
             up_time = min(node_obj.up_times)
-            node_obj.up_times.remove(up_time)
         
+        
+        # If the lowest down time is higher than the lowest up time,
+        # then we missed a down (most likely it's in an older log file).
+        # Don't remove this down, it may coincide with the next up
+        if down_time > up_time and up_time is not 0:
+            down_time = 0
+
+            
+        # Remove non-zero entries from the lists, we're done with them
+        if down_time is not 0:
+            node_obj.down_times.remove(down_time)
+            
+        if up_time is not 0:
+            node_obj.up_times.remove(up_time)
+            
         
         # Print the data
         if down_time is 0:

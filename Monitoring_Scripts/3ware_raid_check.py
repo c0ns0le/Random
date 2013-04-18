@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 # Description: Check the status of a 3ware RAID controller via tw_cli
 # Written by: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 1.1
-# Last change: Added an ignore for arrays that are verifying
+# Version: 1.2
+# Last change: Added case for VERIFY-PAUSED status
 
 # License:
 # This software is released under version three of the GNU General Public License (GPL) of the
@@ -94,7 +94,7 @@ for line in out.split(os.linesep):
   
   [array, status] = line.split()[0:4:2]
   
-  if (status == "OK") or (status == "VERIFYING"):
+  if status == "OK" or status == "VERIFYING" or status == "VERIFY-PAUSED":
     sys.stdout.write("RAID status for array '" + array + "': " + status + "\n")
     
   else:
@@ -122,7 +122,7 @@ for line in out.split(os.linesep):
   [status, disk] = line.split()[1:8:6]
   
   if status == "OK":
-    sys.stdout.write("RAID status for disk '" + disk + "': OK\n")
+    sys.stdout.write("RAID status for disk '" + disk + "': " + status + "\n")
     
   else:
     sys.stdout.write("WARNING: RAID status for disk '" + disk + "': " + status + "\n")

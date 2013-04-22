@@ -3,8 +3,8 @@ use strict;
 use warnings;
 # Description: This script is used to manage users on the Frank HPC cluster of the SaM group at the University of Pittsburgh
 # Written by: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 2
-# Last change: Partial rewrite, removed unused or broken code
+# Version: 2.1
+# Last change: Fixed double increment of next UID
 
 # License
 # This script is released under version three of the GNU General Public License (GPL) of the 
@@ -226,7 +226,7 @@ sub get_next_uid {
     push @uids, $uid->get_value('uidNumber');
   } 
   @uids = sort { $b <=> $a } @uids;
-  my $next_uid = ++$uids[0];
+  my $next_uid = $uids[0];
 
   return ++$next_uid;
 }

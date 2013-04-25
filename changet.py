@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 # Description: Download images from a 4chan thread with original file names
 # Written by: Jeff White (jwhite530@gmail.com)
-# Version: 1.3.1
-# Last change: Change where URL encoding is removed
+# Version: 1.3.2
+# Last change: Change / to %2F in file names
 
 # License:
 # This software is released under version three of the GNU General Public License (GPL) of the
@@ -131,6 +131,9 @@ while True:
                 
                 # Remove URL encoding many image names have
                 file_name = unquote(file_name)
+                
+                # ... except forward slash
+                file_name = re.sub("/", "%2F", file_name)
                 
                 local_image_handle = open(file_name, "w")
                 local_image_handle.write(remote_image_handle.read())

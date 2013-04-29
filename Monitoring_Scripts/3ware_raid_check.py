@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 # Description: Check the status of a 3ware RAID controller via tw_cli
 # Written by: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 1.2
-# Last change: Added case for VERIFY-PAUSED status
+# Version: 1.3
+# Last change: Fixed a bug in the disk check where it said "array" instead of "disk"
 
 # License:
 # This software is released under version three of the GNU General Public License (GPL) of the
@@ -127,4 +127,4 @@ for line in out.split(os.linesep):
   else:
     sys.stdout.write("WARNING: RAID status for disk '" + disk + "': " + status + "\n")
     
-    syslog.syslog(syslog.LOG_ERR, "NOC-NETCOOL-TICKET: RAID status for array '" + array + "': " + status)
+    syslog.syslog(syslog.LOG_ERR, "NOC-NETCOOL-TICKET: RAID status for disk '" + disk + "': " + status)

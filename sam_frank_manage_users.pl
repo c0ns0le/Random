@@ -3,8 +3,8 @@ use strict;
 use warnings;
 # Description: This script is used to manage users on the Frank HPC cluster of the SaM group at the University of Pittsburgh
 # Written by: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 2.1
-# Last change: Fixed double increment of next UID
+# Version: 2.1.1
+# Last change: Fixed a bug in the group add function where the DN was wrong
 
 # License
 # This script is released under version three of the GNU General Public License (GPL) of the 
@@ -412,7 +412,7 @@ sub add_group_member {
   # If the member add is for a "groupOfNames" group, add the member
   my $group_member_result = $ldap->modify("cn=$group_id,ou=groups,dc=frank,dc=sam,dc=pitt,dc=edu",
     add => {
-      member => "cn=$user_id,ou=people,dc=frank,dc=sam,dc=pitt,dc=edu"
+      member => "cn=$user_id,ou=person,ou=people,dc=frank,dc=sam,dc=pitt,dc=edu"
     }
   ) if ($group_id eq "sam_frank_active_users");
   

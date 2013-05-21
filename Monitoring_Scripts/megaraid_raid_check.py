@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 # Description: Check the status of a MegaRAID controller via StorCLI
 # Written by: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 1
-# Last change: Initial version
+# Version: 1.1
+# Last change: Changed how the status is gathered, skip battery check while charging
 
 # License:
 # This software is released under version three of the GNU General Public License (GPL) of the
@@ -34,50 +34,61 @@ parser = OptionParser("%prog [options] $nodes\nCheck the status of a MegaRAID co
 info = subprocess.Popen(["/usr/local/MegaRAID Storage Manager/StorCLI/storcli64", "/c0/bbu", "show", "all"], stdin=None, stdout=subprocess.PIPE, shell=False)
 out = info.communicate()[0]
 
-for line in out.split(os.linesep):
-    line = line.rstrip()
-  
-    if re.search("^Battery State", line) is not None:
-      
-        status = line.split()[2]
-  
-        if status == "Operational":
-            sys.stdout.write("RAID battery status: Operational\n")
+if re.search("^Charging Status", out):
     
-        else:
-            sys.stdout.write("WARNING: RAID battery status: " + status + "\n")
-        
-            syslog.syslog(syslog.LOG_ERR, "NOC-NETCOOL-TICKET: RAID battery status: " + status)
+    match = re.match("^Charging Status\s+(.*)$", out)
+      
+    status = match.group(1)    
     
+    sys.stdout.write("RAID battery charge state: " + status)
+    
+else:   
+    for line in out.split(os.linesep):
+        line = line.rstrip()
+    
+        if re.search("^Battery State", line) is not None:
+        
+            match = re.match("^Battery State (.*)$", line)
+        
+            status = match.group(1)
+    
+            if status == "Operational":
+                sys.stdout.write("RAID battery status: Operational\n")
+        
+            else:
+                sys.stdout.write("WARNING: RAID battery status: " + status + "\n")
+            
+                syslog.syslog(syslog.LOG_ERR, "NOC-NETCOOL-TICKET: RAID battery status: " + status)
+        
 
-    elif re.search("^Battery Pack Missing", line) is not None:
-      
-        missing_status = line.split()[3]
-  
-        if missing_status != "No":
-            sys.stdout.write("WARNING: RAID battery not found\n")
+        elif re.search("^Battery Pack Missing", line) is not None:
         
-            syslog.syslog(syslog.LOG_ERR, "NOC-NETCOOL-TICKET: RAID battery not found")
+            missing_status = line.split()[3]
+    
+            if missing_status != "No":
+                sys.stdout.write("WARNING: RAID battery not found\n")
             
-            
-    elif re.search("^Battery Replacement required", line) is not None:
-      
-        replacement_status = line.split()[3]
-  
-        if replacement_status != "No":
-            sys.stdout.write("WARNING: RAID battery needs replaced\n")
+                syslog.syslog(syslog.LOG_ERR, "NOC-NETCOOL-TICKET: RAID battery not found")
+                
+                
+        elif re.search("^Battery Replacement required", line) is not None:
         
-            syslog.syslog(syslog.LOG_ERR, "NOC-NETCOOL-TICKET: RAID battery needs replaced")
+            replacement_status = line.split()[3]
+    
+            if replacement_status != "No":
+                sys.stdout.write("WARNING: RAID battery needs replaced\n")
+            
+                syslog.syslog(syslog.LOG_ERR, "NOC-NETCOOL-TICKET: RAID battery needs replaced")
 
-            
-    elif re.search("^Pack is about to fail", line) is not None:
-      
-        replacement_status = line.split()[9]
-  
-        if replacement_status != "No":
-            sys.stdout.write("WARNING: RAID battery needs replaced\n")
+                
+        elif re.search("^Pack is about to fail", line) is not None:
         
-            syslog.syslog(syslog.LOG_ERR, "NOC-NETCOOL-TICKET: RAID battery needs replaced")
+            replacement_status = line.split()[9]
+    
+            if replacement_status != "No":
+                sys.stdout.write("WARNING: RAID battery needs replaced\n")
+            
+                syslog.syslog(syslog.LOG_ERR, "NOC-NETCOOL-TICKET: RAID battery needs replaced")
 
 
             
@@ -95,7 +106,9 @@ for line in out.split(os.linesep):
   
     if re.search("^Controller Status", line) is not None:
         
-        status = line.split()[3]
+        match = re.match("^Controller Status = (.*)$", line)
+      
+        status = match.group(1)
 
         if status == "OK":
             sys.stdout.write("RAID controller status: OK\n")

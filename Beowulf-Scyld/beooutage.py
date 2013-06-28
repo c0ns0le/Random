@@ -1,9 +1,8 @@
 #!/usr/bin/env python
 # Description: Parse syslog and determine when compute nodes were down
 # Written by: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 1.1
-# Last change: Fixed a bug where a down alert could be missing, changed the delete logic
-# to better sync up and down alerts
+# Version: 1.2
+# Last change: Added a regex to catch more node down messages
 
 # License:
 # This software is released under version three of the GNU General Public License (GPL) of the
@@ -56,7 +55,8 @@ class node_class:
 nodes = {}
 earliest_time = 0
 latest_time = 0
-down_re = re.compile("^(\w+\s+\d+\s+\d+:\d+:\d+)\s+<.*Node (\d+) is not up, state: down$")
+down_re1 = re.compile("^(\w+\s+\d+\s+\d+:\d+:\d+)\s+<.*Node (\d+) is not up, state: down$")
+down_re2 = re.compile("^(\w+\s+\d+\s+\d+:\d+:\d+)\s+<.*bpmaster:\s+lost connection to slave (\d+) on read$")
 up_re = re.compile("^(\w+\s+\d+\s+\d+:\d+:\d+)\s+<.*I, node (\d+), am now alive$")
 
 for log_file in log_files:
@@ -69,12 +69,17 @@ for log_file in log_files:
         timestamp = ""
         node = ""
         
-        match_down = down_re.search(line)
+        match_down1 = down_re1.search(line)
+        match_down2 = down_re2.search(line)
         match_up = up_re.search(line)
         
-        if match_down:
-            timestamp = match_down.group(1)
-            node = match_down.group(2)
+        if match_down1:
+            timestamp = match_down1.group(1)
+            node = match_down1.group(2)
+            
+        elif match_down2:
+            timestamp = match_down2.group(1)
+            node = match_down2.group(2)
         
         elif match_up:
             timestamp = match_up.group(1)
@@ -117,7 +122,11 @@ for log_file in log_files:
             
         
         # Add the data to the node object
-        if match_down and node_obj.state is not "down":
+        if match_down1 and node_obj.state is not "down":
+            node_obj.down_times.append(epoch_time)
+            node_obj.state = "down"
+            
+        elif match_down2 and node_obj.state is not "down":
             node_obj.down_times.append(epoch_time)
             node_obj.state = "down"
         

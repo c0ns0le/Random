@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 # Description: Create a usage report of the Frank cluster
 # Written by: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 2
-# Last change: Switched to using the ConfigParser for the group data
+# Version: 2.1
+# Last change: Fixed the FROM address to a valid DNS name
 
 # License:
 # This software is released under version three of the GNU General Public License (GPL) of the
@@ -219,7 +219,7 @@ csv_data.append("%,Percentage of total proc-hours dedicated that were dedicated 
 #
 # Message
 msg = MIMEMultipart()
-msg["From"] = "null@bitbucket.pitt.edu"
+msg["From"] = "null@pitt.edu"
 msg["To"] = "jaw171@pitt.edu"
 msg["Subject"] = "Frank Usage Statistics"
 msg.attach(MIMEText("Attached...\n"))
@@ -233,5 +233,5 @@ msg.attach(part)
 
 # Send it
 smtp = smtplib.SMTP('localhost')
-smtp.sendmail("null@bitbucket.pitt.edu", ["jaw171@pitt.edu"], msg.as_string())
+smtp.sendmail("null@pitt.edu", ["jaw171@pitt.edu"], msg.as_string())
 smtp.quit()

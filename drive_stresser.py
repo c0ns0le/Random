@@ -1,8 +1,11 @@
 #!/usr/bin/env python
 # Description: Write a random set of data in to a file over and over again
 # Written by: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 1
-# Last change: Initial version
+# Version: 1.1
+# Last change: 
+# * Print the amount of data written when killed as a foreground process
+# * Print a more useful message when a destination disk is full
+# * Fixed the custom chunk size
 
 
 
@@ -15,7 +18,7 @@
 
 
 
-import sys, os, traceback, signal
+import sys, os, traceback, signal, errno
 from optparse import OptionParser
 
 
@@ -55,6 +58,25 @@ def fatal_error(error_string, exit_status=1):
     
     if exit_status is not None:
         sys.exit(int(exit_status))
+        
+        
+        
+        
+        
+def print_amount_data_written():
+    if bytes_written < 1048576: # MB
+        print "\nWrote " + str(round(bytes_written / float(1024), 2)) + " KB of data"
+        
+    elif bytes_written < 1073741824: # GB
+        print "\nWrote " + str(round(bytes_written / float(1024) / float(1024), 2)) + " MB of data"
+        
+    elif bytes_written < 1099511627776: # TB
+        print "\nWrote " + str(round(bytes_written / float(1024) / float(1024) / float(1024), 2)) + " GB of data"
+        
+    else:
+        print "\nWrote " + str(round(bytes_written / float(1024) / float(1024) / float(1024) / float(1024), 2)) + " TB of data"
+        
+    return None
         
         
         
@@ -104,12 +126,16 @@ if options.chunk is None:
     chunk_size = 1024 * 1024
     
 else:
-    chunk_size = options.chunk
+    chunk_size = options.chunk * 1024
     
 
 with open("/dev/urandom", "r") as urandom_handle:
     data_chunk = urandom_handle.read(chunk_size)
     
+
+
+# Keep track of how much data we wrote
+bytes_written = 0
 
 
 # Pick a randomish file name and write to it
@@ -122,7 +148,10 @@ with open(outfile, "w+") as outfile_handle:
     def exit_handler(signum, frame):
         if os.path.exists(outfile):
             os.remove(outfile)
-            print "\nBye"
+            
+            if options.background is False:
+                print_amount_data_written()
+            
             sys.exit(0)
             
     signal.signal(signal.SIGTERM, exit_handler)
@@ -132,4 +161,20 @@ with open(outfile, "w+") as outfile_handle:
     # Write the data chunk
     print "Writing..."
     while True:
-        outfile_handle.write(data_chunk)
+        try:
+            outfile_handle.write(data_chunk)
+        
+            bytes_written += len(data_chunk)
+            
+        except IOError as err:
+            if err.errno == errno.ENOSPC:
+                if options.background is False:
+                    print_amount_data_written()
+                    
+                sys.stderr.write("No space left on " + output_dir + "\n")
+                
+                sys.exit(1)
+                
+            else:
+                fatal_error()
+        

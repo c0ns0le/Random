@@ -1,11 +1,10 @@
 #!/usr/bin/env python
 # Description: Write a random set of data in to a file over and over again
 # Written by: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 1.1
-# Last change: 
-# * Print the amount of data written when killed as a foreground process
-# * Print a more useful message when a destination disk is full
-# * Fixed the custom chunk size
+# Version: 1.2
+# Last change:
+# * Fixed a bug in exit_handler() where sys.exit() was not always called
+# * Fixed a bug where the amount of data written was not output because the bytes_written variable was not passed
 
 
 
@@ -63,7 +62,7 @@ def fatal_error(error_string, exit_status=1):
         
         
         
-def print_amount_data_written():
+def print_amount_data_written(bytes_written):
     if bytes_written < 1048576: # MB
         print "\nWrote " + str(round(bytes_written / float(1024), 2)) + " KB of data"
         
@@ -150,9 +149,9 @@ with open(outfile, "w+") as outfile_handle:
             os.remove(outfile)
             
             if options.background is False:
-                print_amount_data_written()
+                print_amount_data_written(bytes_written)
             
-            sys.exit(0)
+        sys.exit(0)
             
     signal.signal(signal.SIGTERM, exit_handler)
     signal.signal(signal.SIGINT, exit_handler)
@@ -169,7 +168,7 @@ with open(outfile, "w+") as outfile_handle:
         except IOError as err:
             if err.errno == errno.ENOSPC:
                 if options.background is False:
-                    print_amount_data_written()
+                    print_amount_data_written(bytes_written)
                     
                 sys.stderr.write("No space left on " + output_dir + "\n")
                 

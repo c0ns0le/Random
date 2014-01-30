@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 # Description: Check if IPs are on mail blacklists in DNS
 # Written by: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 1
-# Last change: Initial version
+# Version: 1.1
+# Last change: increased the scope of where the dns.resolver.NoAnswer exception is handled 
 
 # License:
 # This software is released under version three of the GNU General Public License (GPL) of the
@@ -84,11 +84,7 @@ for _, ip in config.items("ip"):
             
             # Get the TXT record for more information
             txt_record = []
-            try:
-                txt_record = dns.resolver.query(ip_reversed + "." + rbl, "TXT").response.answer
-                
-            except dns.resolver.NoAnswer:
-                pass
+            txt_record = dns.resolver.query(ip_reversed + "." + rbl, "TXT").response.answer
             
             if len(txt_record) == 0:
                 email_body.append("Found blacklist of IP " + ip + " by RBL " + rbl + "\n")
@@ -106,6 +102,11 @@ for _, ip in config.items("ip"):
             
             print "      OK - Not blacklisted"
             
+            continue
+
+        except dns.resolver.NoAnswer:
+            print "      No answer - Skipping"
+
             continue
             
             

@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 # Description: Sync LDAP groups from Active Directory to an OpenLDAP server
 # Written by: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 1
-# Last change: Initial version
+# Version: 1.1
+# Last change: Fixed a crash caused by empty groups
 
 # License:
 # This software is released under version three of the GNU General Public License (GPL) of the
@@ -75,7 +75,7 @@ config.read(config_file)
 auth_config = dict(config.items("auth"))
         
         
-        
+ldap.set_option(ldap.OPT_X_TLS_REQUIRE_CERT, ldap.OPT_X_TLS_NEVER)
         
 
 # Connect to the LDAP servers
@@ -128,9 +128,14 @@ for _, group in config.items("groups"):
     sam_group_dn = sam_ldap_result[0][0]
         
     sam_ldap_group_members = []
-        
-    for member in sam_ldap_result[0][1]["memberUid"]:
-        sam_ldap_group_members.append(member)
+    
+    try:
+        for member in sam_ldap_result[0][1]["memberUid"]:
+            sam_ldap_group_members.append(member)
+            
+    except KeyError:
+        # For empty groups
+        pass
         
     print "SaM LDAP group members: " + str(sam_ldap_group_members)
     

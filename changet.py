@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 # Description: Download images from a 4chan thread with original file names
 # Written by: Jeff White (jwhite530@gmail.com)
-# Version: 1.3.3
-# Last change: Change to the proper file name before calling os.path.exists(file_name)
+# Version: 1.3.4
+# Last change: Changed /res/ to /thread/ because Moot changed things
 
 # License:
 # This software is released under version three of the GNU General Public License (GPL) of the
@@ -83,7 +83,7 @@ while True:
     try:
         
         # Get the JSON data
-        json_handle = urlopen("https://api.4chan.org/" + board + "/res/" + thread + ".json")
+        json_handle = urlopen("https://api.4chan.org/" + board + "/thread/" + thread + ".json")
         json_text = json_handle.read()
         json_handle.close()
 

@@ -1,4 +1,0 @@
-vpnc_daemon is a program to keep a semi-persistent vpnc client connected.
-
-Once started the program wakes up every 60 seconds to check the status 
-of vpnc and connects it again if needed.

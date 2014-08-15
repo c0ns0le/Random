@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 # Description: Create a capacity report of VMware clusters
 # Written by: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
-# Version: 1
-# Last change: Initial version
+# Version: 1.1
+# Last change: Skip hosts who do not have an overall status of 'green'
 
 # License:
 # This software is released under version three of the GNU General Public License (GPL) of the
@@ -72,6 +72,9 @@ for cluster in target_clusters:
         "cpu_cores_allocated" : 0,
     }
     for host in clusters[cluster].host:
+        if host.overallStatus != "green":
+            print "Warning: Skipping host " + host.name + ", overall status is not 'green'"
+            continue
         cluster_usage["cpu_cores_total"] += host.summary.host.hardware.cpuInfo.numCpuCores
         cluster_usage["memory_total"] += int(host.summary.host.hardware.memorySize / 1024 / 1024)
         cluster_usage["memory_used"] += host.summary.quickStats.overallMemoryUsage

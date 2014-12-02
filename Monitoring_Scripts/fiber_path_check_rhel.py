@@ -13,7 +13,11 @@
 
 
 
-import sys, os, re, subprocess, syslog
+import sys
+import os
+import re
+import subprocess
+import syslog
 from optparse import OptionParser
 
 

@@ -13,7 +13,11 @@
 
 
 
-import sys, os, re, subprocess, traceback
+import sys
+import os
+import re
+import subprocess
+import traceback
 from urllib import urlopen
 from optparse import OptionParser
 

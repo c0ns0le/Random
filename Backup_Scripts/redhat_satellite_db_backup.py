@@ -13,7 +13,17 @@
 
 
 
-import sys, os, re, syslog, signal, subprocess, glob, datetime, traceback, time, shutil
+import sys
+import os
+import re
+import syslog
+import signal
+import subprocess
+import glob
+import datetime
+import traceback
+import time
+import shutil
 from optparse import OptionParser
 
 

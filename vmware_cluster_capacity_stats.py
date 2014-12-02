@@ -13,7 +13,13 @@
 
 
 
-import sys, os, re, syslog, time, json, locale
+import sys
+import os
+import re
+import syslog
+import time
+import json
+import locale
 import atexit
 import pyVim.connect
 import pyVmomi

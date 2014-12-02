@@ -13,7 +13,9 @@
 
 
 
-import sys, os, subprocess
+import sys
+import os
+import subprocess
 from optparse import OptionParser
 
 

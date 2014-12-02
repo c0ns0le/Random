@@ -13,7 +13,15 @@
 
 
 
-import sys, os, re, syslog, signal, traceback, ldap, ConfigParser, smtplib
+import sys
+import os
+import re
+import syslog
+import signal
+import traceback
+import ldap
+import ConfigParser
+import smtplib
 from email.MIMEMultipart import MIMEMultipart
 from email.MIMEBase import MIMEBase
 from email.MIMEText import MIMEText

@@ -13,7 +13,17 @@
 
 
 
-import sys, os, re, subprocess, syslog, signal, smtplib, datetime, time, locale, ConfigParser
+import sys
+import os
+import re
+import subprocess
+import syslog
+import signal
+import smtplib
+import datetime
+import time
+import locale
+import ConfigParser
 from email.MIMEMultipart import MIMEMultipart
 from email.MIMEBase import MIMEBase
 from email.MIMEText import MIMEText

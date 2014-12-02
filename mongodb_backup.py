@@ -13,7 +13,12 @@
 
 
 
-import sys, os, subprocess, traceback, shutil, syslog
+import sys
+import os
+import subprocess
+import traceback
+import shutil
+import syslog
 from optparse import OptionParser
 
 

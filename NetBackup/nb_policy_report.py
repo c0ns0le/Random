@@ -13,7 +13,14 @@
 
 
 
-import sys, os, re, subprocess, syslog, pickle, datetime, difflib
+import sys
+import os
+import re
+import subprocess
+import syslog
+import pickle
+import datetime
+import difflib
 from optparse import OptionParser
 
 

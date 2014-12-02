@@ -17,7 +17,11 @@
 
 
 
-import sys, os, traceback, signal, errno
+import sys
+import os
+import traceback
+import signal
+import errno
 from optparse import OptionParser
 
 

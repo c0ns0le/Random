@@ -1,0 +1,140 @@
+#!/usr/bin/env python
+
+# Description: Netbackup bpstart/bpend scripts to take a snapshot of the ZFS
+# volume which contains Supercell's metadata database and send that to a stream
+# file to be backed up by NBU
+
+# Author: Jeff White
+
+import sys
+import os
+import subprocess
+import syslog
+import datetime
+import time
+
+
+
+
+
+# Return a "pretty" timestamp: 2013-07-04 13:58:47
+def timestamp():
+    return datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S: ")
+
+
+
+
+
+# Set STDOUT, STDIN, and STDERR - Netbackup requires this
+dev_null = open(os.devnull, "w")
+os.dup2(dev_null.fileno(), 0) # STDIN
+
+out_file = open("/var/log/mds_db_backup.out", "a")
+os.dup2(out_file.fileno(), 1) # STDOUT
+
+err_file = open("/var/log/mds_db_backup.err", "a")
+os.dup2(err_file.fileno(), 2) # STDERR
+
+
+
+
+
+# Prepare syslog
+syslog.openlog(os.path.basename(sys.argv[0]), syslog.LOG_NOWAIT, syslog.LOG_USER)
+
+
+
+
+
+nbu_args = {
+    "client_name" : sys.argv[1],
+    "policy_name" : sys.argv[2],
+    "schedule_name" : sys.argv[3],
+    "schedule_type" : sys.argv[4], # FULL, INCR, CINC, UBAK, UARC
+    #"status" : sys.argv[5], # always 0
+    #"result_file" : sys.argv[6],
+}
+
+
+
+
+
+print timestamp() + "Supercell MDS database backup start script invoked with: " + str(nbu_args)
+
+
+
+
+
+print timestamp() + "Performing pre-snapshot sanity checks"
+
+if os.path.exists("/mds_dumps/pittsam_s2mds@nbu_backup.zsnap.gz"):
+    print timestamp() + "Stream file already exists, aborting and returning error to NBU"
+    syslog.syslog(syslog.LOG_ERR, "NOC-NETCOOl-TICKET: Stream file of MDS DB volume already exists, aborting backup.")
+    sys.exit(1)
+
+
+
+
+
+print timestamp() + "Creating snapshot"
+
+zfs_proc = subprocess.Popen(["/opt/psc/sbin/zfs", "snapshot", "pittsam_s2mds@nbu_backup"])
+
+status = zfs_proc.wait()
+
+if status == 0:
+    print timestamp() + "Snapshot completed successfully"
+
+else:
+    print timestamp() + "Failed to create snapshot, aborting and returning error to NBU"
+    syslog.syslog(syslog.LOG_ERR, "NOC-NETCOOl-TICKET: Failed to create snapshot of MDS DB volume, aborting backup.")
+    sys.exit(1)
+
+
+
+
+
+print timestamp() + "Creating stream file from snapshot"
+
+stream_file_handle = open("/mds_dumps/pittsam_s2mds@nbu_backup.zsnap.gz", "w")
+
+zfs_proc = subprocess.Popen(["/opt/psc/sbin/zfs", "send", "pittsam_s2mds@nbu_backup"], stdout=subprocess.PIPE, shell=False)
+gzip_proc = subprocess.Popen(["/bin/gzip"], stdin=zfs_proc.stdout, stdout=stream_file_handle, shell=False)
+
+zfs_status = zfs_proc.wait()
+gzip_status = gzip_proc.wait()
+
+stream_file_handle.close()
+
+if zfs_status == 0:
+    print timestamp() + "Stream file creation completed successfully"
+
+else:
+    print timestamp() + "Failed to create stream file, aborting and returning error to NBU"
+    syslog.syslog(syslog.LOG_ERR, "NOC-NETCOOl-TICKET: Failed to create stream file of MDS DB volume, aborting backup.")
+    sys.exit(1)
+
+
+
+
+
+print timestamp() + "Performing post-snapshot sanity checks"
+
+if os.stat("/mds_dumps/pittsam_s2mds@nbu_backup.zsnap.gz").st_size == 0:
+    print timestamp() + "Stream file is 0 bytes in size, aborting and returning error to NBU"
+    syslog.syslog(syslog.LOG_ERR, "NOC-NETCOOl-TICKET: Stream file of MDS DB volume is 0 bytes in size, aborting backup.")
+    sys.exit(1)
+
+
+
+
+
+print timestamp() + "Supercell MDS database backup start script completed."
+
+
+
+
+
+# We're done
+syslog.closelog()
+sys.exit(0)

@@ -1,0 +1,107 @@
+#!/usr/bin/env python
+
+# Description: Netbackup bpstart/bpend scripts to take a snapshot of the ZFS
+# volume which contains Supercell's metadata database and send that to a stream
+# file to be backed up by NBU
+
+# Author: Jeff White
+
+import sys
+import os
+import subprocess
+import syslog
+import datetime
+
+
+
+
+
+# Return a "pretty" timestamp: 2013-07-04 13:58:47
+def timestamp():
+    return datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S: ")
+
+
+
+
+
+# Set STDOUT, STDIN, and STDERR - Netbackup requires this
+dev_null = open(os.devnull, "w")
+os.dup2(dev_null.fileno(), 0) # STDIN
+
+out_file = open("/var/log/mds_db_backup.out", "a")
+os.dup2(out_file.fileno(), 1) # STDOUT
+
+err_file = open("/var/log/mds_db_backup.err", "a")
+os.dup2(err_file.fileno(), 2) # STDERR
+
+
+
+
+
+# Prepare syslog
+syslog.openlog(os.path.basename(sys.argv[0]), syslog.LOG_NOWAIT, syslog.LOG_USER)
+
+
+
+
+
+nbu_args = {
+    "client_name" : sys.argv[1],
+    "policy_name" : sys.argv[2],
+    "schedule_name" : sys.argv[3],
+    "schedule_type" : sys.argv[4], # FULL, INCR, CINC, UBAK, UARC
+    #"status" : sys.argv[5], # always 0
+    #"result_file" : sys.argv[6],
+}
+
+
+
+
+
+print timestamp() + "Supercell MDS database backup end script invoked with: " + str(nbu_args)
+
+
+
+
+
+print timestamp() + "Removing stream file"
+try:
+    os.unlink("/mds_dumps/pittsam_s2mds@nbu_backup.zsnap.gz")
+
+except OSError:
+    print timestamp() + "Failed to remove stream file, moving on but throwing alert"
+    syslog.syslog(syslog.LOG_ERR, "NOC-NETCOOl-TICKET: Failed to remove stream file of MDS DB volume.")
+    # Don't exit non-zero here or NBU will not consider the backup successful
+
+
+
+
+
+print timestamp() + "Removing snapshot"
+
+zfs_proc = subprocess.Popen(["/opt/psc/sbin/zfs", "destroy", "pittsam_s2mds@nbu_backup"]) # Don't EVER forget the @ and snapshot name!
+
+
+status = zfs_proc.wait()
+
+if status == 0:
+    print timestamp() + "Snapshot destroyed successfully"
+
+else:
+    print timestamp() + "Failed to destroy snapshot"
+    syslog.syslog(syslog.LOG_ERR, "NOC-NETCOOl-TICKET: Failed to destroy snapshot of MDS DB volume.")
+    # Don't exit non-zero here or NBU will not consider the backup successful
+
+
+
+
+
+print timestamp() + "Supercell MDS database backup end script completed."
+
+
+
+
+
+# We're done
+syslog.closelog()
+sys.exit(0)

@@ -5,7 +5,7 @@
 # Last change: Switch from a grep() on an array to a hash check
 
 ##### License
-# This script is released under version three (3) of the GNU General Public License (GPL) of the 
+# This script is released under version three (3) of the GNU General Public License (GPL) of the
 # Free Software Foundation (FSF), the text of which is available at http://www.fsf.org/licensing/licenses/gpl-3.0.html.
 # Use or modification of this script implies your acceptance of this license and its terms.
 # This is a free script, you are free to change and redistribute it with the terms of the GNU GPL.
@@ -63,6 +63,6 @@ for my $each_virsh_line (`$virsh_binary list --all`){
   }
   else {
     print "Found new VM: $vm_name\n";
-    syslog("LOG_ERR", "$vm_name is new RODS KVM virtual server.  Please create a master ticket for new server. -- $0 -- NOC-NETCOOL-TICKET:");
+    syslog("LOG_ERR", "NOC-NETCOOL-TICKET: $vm_name is new RODS KVM virtual server.");
   }
 }

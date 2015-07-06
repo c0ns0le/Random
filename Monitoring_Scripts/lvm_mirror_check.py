@@ -161,7 +161,7 @@ if __name__ == "__main__":
             if logical_volume not in previous_logical_volumes:
                 print "WARNING: Logical volume " + logical_volume + " is new, see --help and remove pickle file."
 
-                syslog.syslog(syslog.LOG_WARN, "NOC-NETCOOL-TICKET: Logical volume " + logical_volume + " is new, see --help and remove pickle file.")
+                syslog.syslog(syslog.LOG_WARNING, "NOC-NETCOOL-TICKET: Logical volume " + logical_volume + " is new, see --help and remove pickle file.")
 
                 continue
 

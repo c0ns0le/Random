@@ -11,6 +11,7 @@ import os
 import subprocess
 import syslog
 import datetime
+import time
 
 
 
@@ -64,19 +65,6 @@ print timestamp() + "Supercell MDS database backup end script invoked with: " + 
 
 
 
-print timestamp() + "Removing stream file"
-try:
-    os.unlink("/mds_dumps/pittsam_s2mds@nbu_backup.zsnap.gz")
-
-except OSError:
-    print timestamp() + "Failed to remove stream file, moving on but throwing alert"
-    syslog.syslog(syslog.LOG_ERR, "NOC-NETCOOl-TICKET: Failed to remove stream file of MDS DB volume.")
-    # Don't exit non-zero here or NBU will not consider the backup successful
-
-
-
-
-
 print timestamp() + "Removing snapshot"
 
 zfs_proc = subprocess.Popen(["/opt/psc/sbin/zfs", "destroy", "pittsam_s2mds@nbu_backup"]) # Don't EVER forget the @ and snapshot name!
@@ -91,6 +79,44 @@ else:
     print timestamp() + "Failed to destroy snapshot"
     syslog.syslog(syslog.LOG_ERR, "NOC-NETCOOl-TICKET: Failed to destroy snapshot of MDS DB volume.")
     # Don't exit non-zero here or NBU will not consider the backup successful
+
+
+
+
+
+print timestamp() + "Renaming latest stream file"
+try:
+    os.rename("/mds_dumps/pittsam_s2mds@nbu_backup.zsnap.gz", "/mds_dumps/pittsam_s2mds@nbu_backup.zsnap.gz" + datetime.datetime.today().strftime("_%Y-%m-%d-%H:%M:%S"))
+
+except OSError:
+    print timestamp() + "Failed to rename latest stream file, moving on but throwing alert"
+    syslog.syslog(syslog.LOG_ERR, "NOC-NETCOOl-TICKET: Failed to rename latest stream file of MDS DB volume.")
+    # Don't exit non-zero here or NBU will not consider the backup successful
+
+
+
+
+
+print timestamp() + "Removing old stream files"
+for each_file in os.listdir("/mds_dumps/"):
+    if not each_file.startswith("pittsam_s2mds@nbu_backup.zsnap.gz"):
+        continue
+
+
+    try:
+        mtime = os.path.getmtime("/mds_dumps/" + each_file)
+
+    except OSError: # The file could have been removed or whatever by the time we get here
+        continue
+
+
+    if mtime < (time.time() - (60 * 60 * 24 * 7)):
+        try:
+            os.unlink("/mds_dumps/" + each_file)
+
+        except OSError:
+            print timestamp() + "Failed to remove old stream file, moving on but throwing alert"
+            syslog.syslog(syslog.LOG_ERR, "NOC-NETCOOl-TICKET: Failed to remove old stream file of MDS DB volume.")
 
 
 

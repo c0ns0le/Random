@@ -83,13 +83,13 @@ class Snap(object):
 
 
     def get_credentials(self, password_file):
-        """Get the credentials to use with API calls to Isilon and set the self.username and self.password global variables
+        """Get the credentials to use with API calls to Isilon
         """
 
-        self.username = "apiuser"
+        self.api_username = "apiuser"
 
         try:
-            self.password = open(password_file, "r").read().rstrip()
+            self.api_password = open(password_file, "r").read().rstrip()
 
         except IOError:
             error("Unable to acquire credentails", 1, "NOC-NETCOOL-TICKET")
@@ -109,7 +109,7 @@ class Snap(object):
             "path" : self.isilon_dir,
         }
 
-        response = requests.post(url, verify=False, auth=(self.username, self.password), json=payload)
+        response = requests.post(url, verify=False, auth=(self.api_username, self.api_password), json=payload)
 
         if "errors" in response.json():
             error("Failed to create snapshot, server response: " + str(response.json()), 1, "NOC-NETCOOL-TICKET")
@@ -123,7 +123,7 @@ class Snap(object):
 
         url = "https://panacea.sam.example.edu:8080/platform/1/snapshot/snapshots/" + self.snapshot_name
 
-        response = requests.delete(url, verify=False, auth=(self.username, self.password))
+        response = requests.delete(url, verify=False, auth=(self.api_username, self.api_password))
 
         try:
             if "errors" in response.json():

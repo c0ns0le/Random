@@ -8,25 +8,25 @@ systems available to the clusters.
 
 Example
 -------
-$ showquota
-
-User quota on /ihome: None (Usage: Unknown)
-Group quota on /ihome: 2,099 GB (Usage: 127 GB)
-
-User quota on /home: 100 GB (Usage: 13 GB)
-Group quota on /home: None (Usage: Unknown)
-
-User quota on /home1: None (Usage: Unknown)
-Group quota on /home1: None (Usage: Unknown)
-
-User quota on /home2: None (Usage: Unknown)
-Group quota on /home2: None (Usage: Unknown)
-
-User quota on /gscratch2: None (Usage: Unknown)
-Group quota on /gscratch2: None (Usage: Unknown)
-
-User quota on /mnt/mobydisk: None (Usage: 0 GB)
-Group quota on /mnt/mobydisk: None (Usage: 0 GB)
+> $ showquota
+> 
+> User quota on /ihome: None (Usage: Unknown)
+> Group quota on /ihome: 2,099 GB (Usage: 127 GB)
+> 
+> User quota on /home: 100 GB (Usage: 13 GB)
+> Group quota on /home: None (Usage: Unknown)
+> 
+> User quota on /home1: None (Usage: Unknown)
+> Group quota on /home1: None (Usage: Unknown)
+> 
+> User quota on /home2: None (Usage: Unknown)
+> Group quota on /home2: None (Usage: Unknown)
+> 
+> User quota on /gscratch2: None (Usage: Unknown)
+> Group quota on /gscratch2: None (Usage: Unknown)
+> 
+> User quota on /mnt/mobydisk: None (Usage: 0 GB)
+> Group quota on /mnt/mobydisk: None (Usage: 0 GB)
 
 
 How it works

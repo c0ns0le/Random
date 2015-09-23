@@ -1,0 +1,99 @@
+#!/usr/bin/env python
+"""Show filesystem usage and quotas of an Isilon array via its API
+Written by: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
+
+License:
+This software is released under version three of the GNU General Public License (GPL) of the
+Free Software Foundation (FSF), the text of which is available at http://www.fsf.org/licensing/licenses/gpl-3.0.html.
+Use or modification of this software implies your acceptance of this license and its terms.
+This is a free software, you are free to change and redistribute it with the terms of the GNU GPL.
+There is NO WARRANTY, not even for FITNESS FOR A PARTICULAR USE to the extent permitted by law.
+"""
+
+
+
+import os
+import sys
+import requests
+import syslog
+import datetime
+import traceback
+import subprocess
+import re
+import pwd
+import grp
+import json
+from optparse import OptionParser
+
+
+
+ASCII_RED = "\033[31m"
+ASCII_ENDCOLOR = "\033[0m"
+
+
+
+def timestamp():
+    """Return a "pretty" timestamp: 2013-07-04 13:58:47
+    """
+    return datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S: ")
+
+
+
+def error(error_string, exit_status=1, syslog_tag=None):
+    """Print a stack trace, exception, and an error string to STDERR
+       then exit with the exit status given (default: 1) or don't exit
+       if passed NoneType
+    """
+
+    exc_type, exc_value, exc_traceback = sys.exc_info()
+
+    if exc_type is not None:
+        traceback.print_exception(exc_type, exc_value, exc_traceback)
+
+    sys.stderr.write(ASCII_RED + timestamp() + str(error_string) + ASCII_ENDCOLOR + "\n")
+
+    syslog.openlog(os.path.basename(sys.argv[0]), syslog.LOG_NOWAIT, syslog.LOG_USER)
+
+    if syslog_tag is not None:
+        syslog.syslog(syslog.LOG_ERR, syslog_tag + ": " + str(error_string))
+
+    else:
+        syslog.syslog(syslog.LOG_ERR, str(error_string))
+
+    syslog.closelog()
+
+    if exit_status is not None:
+        sys.exit(int(exit_status))
+
+
+
+if __name__ == "__main__":
+    # How were we called?
+    parser = OptionParser("%prog [options]\n" + "Show filesystem usage and quotas of an Isilon array via its API")
+
+    (options, args) = parser.parse_args()
+
+    # Disable warning about self-signed SSL certs
+    requests.packages.urllib3.disable_warnings()
+
+    url = "https://panacea.sam.pitt.edu:8080/platform/1/quota/quotas"
+
+    username = "quotaviewer"
+
+    with open("quota_api_pass.txt", "r") as quota_pass_handle:
+        password = quota_pass_handle.read().rstrip()
+
+    #print username
+    #print password
+
+    payload = {
+        "path" : "/ifs/sam",
+        "zone" : "LDAP",
+    }
+
+    response = requests.get(url, verify=False, auth=(username, password), json=payload)
+
+    if "errors" in response.json():
+        error("Failed to get Isilon quota information, server response: " + str(response.json()), 1)
+
+    print json.dumps(response.json())

@@ -1,0 +1,433 @@
+#!/usr/bin/env python
+"""Show filesystem usage and quotas
+Written by: Jeff White of the University of Pittsburgh (jaw171@pitt.edu)
+
+License:
+This software is released under version three of the GNU General Public License (GPL) of the
+Free Software Foundation (FSF), the text of which is available at http://www.fsf.org/licensing/licenses/gpl-3.0.html.
+Use or modification of this software implies your acceptance of this license and its terms.
+This is a free software, you are free to change and redistribute it with the terms of the GNU GPL.
+There is NO WARRANTY, not even for FITNESS FOR A PARTICULAR USE to the extent permitted by law.
+"""
+
+
+
+import os
+import sys
+import requests
+import syslog
+import datetime
+import traceback
+import subprocess
+import re
+import pwd
+import grp
+import json
+import locale
+from optparse import OptionParser
+
+
+
+ASCII_RED = "\033[31m"
+ASCII_ENDCOLOR = "\033[0m"
+
+
+
+def timestamp():
+    """Return a "pretty" timestamp: 2013-07-04 13:58:47
+    """
+    return datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S: ")
+
+
+
+def error(error_string, exit_status=1, syslog_tag=None):
+    """Print a stack trace, exception, and an error string to STDERR
+       then exit with the exit status given (default: 1) or don't exit
+       if passed NoneType
+    """
+
+    exc_type, exc_value, exc_traceback = sys.exc_info()
+
+    if exc_type is not None:
+        traceback.print_exception(exc_type, exc_value, exc_traceback)
+
+    sys.stderr.write(ASCII_RED + timestamp() + str(error_string) + ASCII_ENDCOLOR + "\n")
+
+    syslog.openlog(os.path.basename(sys.argv[0]), syslog.LOG_NOWAIT, syslog.LOG_USER)
+
+    if syslog_tag is not None:
+        syslog.syslog(syslog.LOG_ERR, syslog_tag + ": " + str(error_string))
+
+    else:
+        syslog.syslog(syslog.LOG_ERR, str(error_string))
+
+    syslog.closelog()
+
+    if exit_status is not None:
+        sys.exit(int(exit_status))
+
+
+
+def get_username():
+    return pwd.getpwuid(os.getuid())[0]
+
+
+
+def get_groupname():
+    return grp.getgrgid(os.getgid())[0]
+
+
+
+def get_isilon_quota():
+    """Determine the Isilon user and group quota of the user who called this function
+    and return them as a dictionary of:
+
+    {
+        user_quota : int(),
+        user_usage : int(),
+        group_quota : int(),
+        group_usage : int(),
+    }
+
+    Values are in GB.
+    """
+
+    quotas = dict()
+
+    quota_proc = subprocess.Popen(["/usr/local/showquota/call_isilon_quota", "fgdf"], stdin=None, stdout=subprocess.PIPE, shell=False)
+    out = quota_proc.communicate()[0]
+
+    status = quota_proc.wait()
+
+    if status != 0:
+        error("Failed to retrieve Isilon quotas\n", 1)
+
+    all_quotas = json.loads(out)["quotas"]
+    #print all_quotas[0]
+
+    for quota in all_quotas:
+        try:
+            if quota["persona"]["id"] == "GID:" + str(os.getgid()):
+                quotas["group_quota"] = quota["thresholds"]["hard"] / 1024 / 1024 / 1024
+                quotas["group_usage"] = quota["usage"]["logical"] / 1024 / 1024 / 1024
+
+            if quota["persona"]["id"] == "UID:" + str(os.getuid()):
+                quotas["user_quota"] = quota["thresholds"]["hard"] / 1024 / 1024 / 1024
+                quotas["user_usage"] = quota["usage"]["logical"] / 1024 / 1024 / 1024
+
+        except TypeError:
+            pass
+
+    # If no quotas were found, set the values to 0:
+    if "user_quota" not in quotas:
+        quotas["user_quota"] = 0
+
+    if "user_usage" not in quotas:
+        quotas["user_usage"] = 0
+
+    if "group_quota" not in quotas:
+        quotas["group_quota"] = 0
+
+    if "group_usage" not in quotas:
+        quotas["group_usage"] = 0
+
+    return quotas
+
+
+
+def get_lustre_quota(mount_point):
+    """Determine the NFS user and group quota of the user who called this function
+    and return them as a dictionary of:
+
+    {
+        user_quota : int(),
+        user_usage : int(),
+        group_quota : int(),
+        group_usage : int(),
+    }
+
+    Values are in GB.
+    """
+
+    quotas = dict()
+
+    # Get the user quota information
+    quota_proc = subprocess.Popen(["lfs", "quota", "-u", get_username(), mount_point], stdin=None, stdout=subprocess.PIPE, shell=False)
+    out = quota_proc.communicate()[0]
+
+    status = quota_proc.wait()
+
+    if status != 0:
+        error("Failed to retrieve quota for mount point " + mount_point + "\n", 1)
+
+    for line in out.split(os.linesep):
+        line = line.rstrip()
+
+        # Skip lines we don't care about
+        if line.startswith("Disk quotas"):
+            continue
+
+        if "Filesystem  kbytes   quota" in line:
+            continue
+
+        if line == "":
+            continue
+
+        quotas["user_usage"] = int(line.split()[1]) / 1024 / 1024
+        quotas["user_quota"] = int(line.split()[3]) / 1024 / 1024
+
+
+    # Get the group quota information
+    quota_proc = subprocess.Popen(["lfs", "quota", "-g", get_groupname(), mount_point], stdin=None, stdout=subprocess.PIPE, shell=False)
+    out = quota_proc.communicate()[0]
+
+    status = quota_proc.wait()
+
+    if status != 0:
+        error("Failed to retrieve quota for mount point " + mount_point + "\n", 1)
+
+    for line in out.split(os.linesep):
+        line = line.rstrip()
+
+        # Skip lines we don't care about
+        if line.startswith("Disk quotas"):
+            continue
+
+        if "Filesystem  kbytes   quota" in line:
+            continue
+
+        if line == "":
+            continue
+
+        quotas["group_usage"] = int(line.split()[1]) / 1024 / 1024
+        quotas["group_quota"] = int(line.split()[3]) / 1024 / 1024
+
+    # If no quotas were found, set the values to 0:
+    if "user_quota" not in quotas:
+        quotas["user_quota"] = 0
+
+    if "user_usage" not in quotas:
+        quotas["user_usage"] = 0
+
+    if "group_quota" not in quotas:
+        quotas["group_quota"] = 0
+
+    if "group_usage" not in quotas:
+        quotas["group_usage"] = 0
+
+    return quotas
+
+
+
+def get_nfs_quota(mount_point):
+    """Determine the Lustre user and group quota of the user who called this function
+    and return them as a dictionary of:
+
+    {
+        user_quota : int(),
+        user_usage : int(),
+        group_quota : int(),
+        group_usage : int(),
+    }
+
+    Values are in GB.
+    """
+
+    quotas = dict()
+
+    # Get the user quota information
+    quota_proc = subprocess.Popen(["quota", "-w", "-f", mount_point, "-u"], stdin=None, stdout=subprocess.PIPE, shell=False)
+    out = quota_proc.communicate()[0]
+
+    status = quota_proc.wait()
+
+    if status != 0:
+        error("Failed to retrieve quota for mount point " + mount_point + "\n", 1)
+
+    for line in out.split(os.linesep):
+        line = line.rstrip()
+
+        # Skip lines we don't care about
+        if line.startswith("Disk quotas"):
+            continue
+
+        if "Filesystem  blocks   quota" in line:
+            continue
+
+        if line == "":
+            continue
+
+        quotas["user_usage"] = int(line.split()[1]) / 1024 / 1024
+        quotas["user_quota"] = int(line.split()[3]) / 1024 / 1024
+
+
+    # Get the group quota information
+    quota_proc = subprocess.Popen(["quota", "-w", "-f", mount_point, "-g"], stdin=None, stdout=subprocess.PIPE, shell=False)
+    out = quota_proc.communicate()[0]
+
+    status = quota_proc.wait()
+
+    if status != 0:
+        error("Failed to retrieve quota for mount point " + mount_point + "\n", 1)
+
+    for line in out.split(os.linesep):
+        line = line.rstrip()
+
+        # Skip lines we don't care about
+        if line.startswith("Disk quotas"):
+            continue
+
+        if "Filesystem  blocks   quota" in line:
+            continue
+
+        if line == "":
+            continue
+
+        quotas["group_usage"] = int(line.split()[1]) / 1024 / 1024
+        quotas["group_quota"] = int(line.split()[3]) / 1024 / 1024
+
+    # If no quotas were found, set the values to 0:
+    if "user_quota" not in quotas:
+        quotas["user_quota"] = 0
+
+    if "user_usage" not in quotas:
+        quotas["user_usage"] = 0
+
+    if "group_quota" not in quotas:
+        quotas["group_quota"] = 0
+
+    if "group_usage" not in quotas:
+        quotas["group_usage"] = 0
+
+    return quotas
+
+
+
+if __name__ == "__main__":
+    # How were we called?
+    parser = OptionParser("%prog [options]\n" + "Panacea syncer")
+
+    parser.add_option("-g", "--debug",
+        action="store_true", dest="debug", default=False,
+        help="Debug mode mode"
+    )
+
+    (options, args) = parser.parse_args()
+
+
+    locale.setlocale(locale.LC_ALL, 'en_US')
+
+
+    # Bail if we are not on a login node
+    if "login" not in os.uname()[1]:
+        print "This program can only be ran on a SaM cluster login node, exiting."
+        sys.exit(1)
+
+
+    # /ihome
+    print ""
+    quotas = get_isilon_quota()
+
+    if quotas["user_quota"] == 0:
+        print "User quota on /ihome: None (Usage: Unknown)"
+
+    else:
+        print "User quota on /ihome: " + locale.format("%d", quotas["user_quota"], grouping=True) + " GB (Usage: " + locale.format("%d", quotas["user_usage"], grouping=True) + " GB)"
+
+    if quotas["group_quota"] == 0:
+        print "Group quota on /ihome: None (Usage: Unknown"
+
+    else:
+        print "Group quota on /ihome: " + locale.format("%d", quotas["group_quota"], grouping=True) + " GB (Usage: " + locale.format("%d", quotas["group_usage"], grouping=True) + " GB)"
+
+
+    # /home
+    print ""
+    quotas = get_nfs_quota("/home")
+
+    if quotas["user_quota"] == 0:
+        print "User quota on /home: None (Usage: Unknown)"
+
+    else:
+        print "User quota on /home: " + locale.format("%d", quotas["user_quota"], grouping=True) + " GB (Usage: " + locale.format("%d", quotas["user_usage"], grouping=True) + " GB)"
+
+
+    if quotas["group_quota"] == 0:
+        print "Group quota on /home: None (Usage: Unknown)"
+
+    else:
+        print "Group quota on /home: " + locale.format("%d", quotas["group_quota"], grouping=True) + " GB (Usage: " + locale.format("%d", quotas["group_usage"], grouping=True) + " GB)"
+
+
+    # /home1
+    print ""
+    quotas = get_nfs_quota("/home1")
+
+    if quotas["user_quota"] == 0:
+        print "User quota on /home1: None (Usage: Unknown)"
+
+    else:
+        print "User quota on /home1: " + locale.format("%d", quotas["user_quota"], grouping=True) + " GB (Usage: " + locale.format("%d", quotas["user_usage"], grouping=True) + " GB)"
+
+
+    if quotas["group_quota"] == 0:
+        print "Group quota on /home1: None (Usage: Unknown)"
+
+    else:
+        print "Group quota on /home1: " + locale.format("%d", quotas["group_quota"], grouping=True) + " GB (Usage: " + locale.format("%d", quotas["group_usage"], grouping=True) + " GB)"
+
+
+    # /home2
+    print ""
+    quotas = get_nfs_quota("/home2")
+
+    if quotas["user_quota"] == 0:
+        print "User quota on /home2: None (Usage: Unknown)"
+
+    else:
+        print "User quota on /home2: " + locale.format("%d", quotas["user_quota"], grouping=True) + " GB (Usage: " + locale.format("%d", quotas["user_usage"], grouping=True) + " GB)"
+
+
+    if quotas["group_quota"] == 0:
+        print "Group quota on /home2: None (Usage: Unknown)"
+
+    else:
+        print "Group quota on /home2: " + locale.format("%d", quotas["group_quota"], grouping=True) + " GB (Usage: " + locale.format("%d", quotas["group_usage"], grouping=True) + " GB)"
+
+
+    # /gscratch2
+    print ""
+    quotas = get_nfs_quota("/gscratch2")
+
+    if quotas["user_quota"] == 0:
+        print "User quota on /gscratch2: None (Usage: Unknown)"
+
+    else:
+        print "User quota on /gscratch2: " + locale.format("%d", quotas["user_quota"], grouping=True) + " GB (Usage: " + locale.format("%d", quotas["user_usage"], grouping=True) + " GB)"
+
+
+    if quotas["group_quota"] == 0:
+        print "Group quota on /gscratch2: None (Usage: Unknown)"
+
+    else:
+        print "Group quota on /gscratch2: " + locale.format("%d", quotas["group_quota"], grouping=True) + " GB (Usage: " + locale.format("%d", quotas["group_usage"], grouping=True) + " GB)"
+
+
+    # /mnt/mobydisk
+    print ""
+    quotas = get_lustre_quota("/mnt/mobydisk")
+
+    if quotas["user_quota"] == 0:
+        print "User quota on /mnt/mobydisk: None (Usage: " + locale.format("%d", quotas["user_usage"], grouping=True) + " GB)"
+
+    else:
+        print "User quota on /mnt/mobydisk: " + locale.format("%d", quotas["user_quota"], grouping=True) + " GB (Usage: " + locale.format("%d", quotas["user_usage"], grouping=True) + " GB)"
+
+    if quotas["group_quota"] == 0:
+        print "Group quota on /mnt/mobydisk: None (Usage: " + locale.format("%d", quotas["group_usage"], grouping=True) + " GB)"
+
+    else:
+        print "Group quota on /mnt/mobydisk: " + locale.format("%d", quotas["group_quota"], grouping=True) + " GB (Usage: " + locale.format("%d", quotas["group_usage"], grouping=True) + " GB)"
+
+
+    print ""
